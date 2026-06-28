@@ -1,5 +1,6 @@
 # Project-local large/raw reference materials
 material/original/
+simulation/*/out
 
 # macOS
 .DS_Store
@@ -85,6 +86,7 @@ vivado*.backup.log
 *.run.xml
 *.synctex.gz
 *.toc
+*.pdf
 
 # Office temporary files
 ~$*.docx

@@ -22,9 +22,13 @@ end
 
 scriptPath = mfilename('fullpath');
 if isempty(scriptPath)
-    outputDir = pwd;
+    scriptDir = pwd;
 else
-    outputDir = fileparts(scriptPath);
+    scriptDir = fileparts(scriptPath);
+end
+outputDir = fullfile(scriptDir, 'out');
+if exist(outputDir, 'dir') == 0
+    mkdir(outputDir);
 end
 
 %% 2. Generate random bits and modulate by QPSK

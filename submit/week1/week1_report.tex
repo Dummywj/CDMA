@@ -1,0 +1,102 @@
+\documentclass[a4paper,zihao=false]{ctexart}
+\usepackage{geometry}
+\geometry{left=2.5cm,right=2.5cm,top=2.5cm,bottom=2.5cm}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{tabularx}
+\usepackage{listings}
+\usepackage{float}
+\usepackage{url}
+
+\graphicspath{{../../simulation/chapterA/out/}}
+
+\setlength{\parindent}{2em}
+\setlength{\parskip}{0.4em}
+
+\lstset{
+    basicstyle=\ttfamily,
+    breaklines=true,
+    frame=none,
+    tabsize=4
+}
+
+\begin{document}
+\fontsize{14pt}{17.5pt}\selectfont
+
+\begin{center}
+    \textbf{\fontsize{20pt}{25pt}\selectfont 研究生工作周报}\\
+    \vspace{0.5em}
+    姓名：余炜杰\\
+    \vspace{0.5em}
+\end{center}
+
+\noindent\textbf{一、本周工作目标}
+
+本周的主要目标是完成 \texttt{chapterA} 的基础仿真内容，建立 QPSK 调制信号在 AWGN 信道下的误码率仿真流程，并将仿真误码率与理论误码率进行对比。通过该部分工作，形成后续加入信道编码、译码模块前的基准链路和结果参照。
+
+\noindent\textbf{二、本周工作情况}
+
+\noindent\textbf{2.1 工作完成总体情况}
+
+本周已完成 \texttt{chapterA} 中 QPSK over AWGN BER simulation 的 MATLAB 实现。仿真链路包括随机比特生成、QPSK 调制、AWGN 信道传输、QPSK 解调、误码统计、理论 BER 计算以及结果可视化。脚本位于 \path{simulation/chapterA/qpsk_awgn_ber_toolbox.m}，输出结果统一保存到 \path{simulation/chapterA/out} 目录下。
+
+仿真使用 MATLAB Communications Toolbox 完成，主要调用 \texttt{qammod}、\texttt{awgn}、\texttt{qamdemod} 和 \texttt{berawgn} 等函数。这样可以减少底层调制解调实现误差，便于将关注点集中在链路建模、信噪比换算和结果分析上。
+
+\noindent\textbf{2.2 研究工作技术路线及成效}
+
+本周采用的技术路线为：首先生成随机二进制比特序列；随后使用 QPSK 调制得到单位平均功率的复基带符号；然后按照给定的 $E_b/N_0$ 范围换算得到符号信噪比 $E_s/N_0$，并通过 AWGN 信道加入噪声；最后对接收符号进行 QPSK 解调，统计误码率并与理论 BER 曲线进行比较。
+
+对于未编码 QPSK 系统，每个符号承载 2 bit，因此信道输入的符号信噪比满足
+\[
+    E_s/N_0\text{(dB)} = E_b/N_0\text{(dB)} + 10\log_{10}(2).
+\]
+该换算保证了 MATLAB \texttt{awgn} 函数加入噪声时使用的采样信噪比与横轴 $E_b/N_0$ 一致。
+
+图 \ref{fig:ber_curve} 给出了仿真 BER 与理论 BER 的对比结果。可以看到，仿真曲线与理论曲线整体吻合较好，随着 $E_b/N_0$ 增大，误码率快速下降，符合 AWGN 信道下 QPSK 调制的基本规律。
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.82\textwidth]{ber_curve_toolbox.png}
+    \caption{QPSK over AWGN 的仿真 BER 与理论 BER 对比}
+    \label{fig:ber_curve}
+\end{figure}
+
+图 \ref{fig:constellation_0db} 和图 \ref{fig:constellation_8db} 展示了不同信噪比条件下的接收星座图。$E_b/N_0=0$ dB 时，噪声扰动较强，星座点分布较为分散，判决区域附近存在较多误判可能；当 $E_b/N_0=8$ dB 时，星座点明显向理想 QPSK 星座点收敛，误码率也随之降低。
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.72\textwidth]{constellation_toolbox_0dB.png}
+    \caption{$E_b/N_0=0$ dB 时的 QPSK 接收星座图}
+    \label{fig:constellation_0db}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.72\textwidth]{constellation_toolbox_8dB.png}
+    \caption{$E_b/N_0=8$ dB 时的 QPSK 接收星座图}
+    \label{fig:constellation_8db}
+\end{figure}
+
+\noindent\textbf{三、本周工作要点}
+
+本周工作的重点在于建立可靠的基础仿真链路。由于后续需要在该链路基础上加入编码和译码部分，因此本周首先完成未编码系统的基准 BER 曲线，为后续评估编码增益提供参照。
+
+另一个关键点是明确 $E_b/N_0$ 与 $E_s/N_0$ 的换算关系。对于 QPSK 调制，如果直接将 $E_b/N_0$ 作为 AWGN 函数的输入信噪比，会导致噪声功率设置偏差，从而影响 BER 曲线的准确性。本周脚本中已经显式完成该换算，并通过理论曲线对比验证了仿真流程的正确性。
+
+\noindent\textbf{四、本周工作问题总结}
+
+\noindent\textbf{4.1 问题总结}
+
+本周已经解决的问题包括：完成 QPSK 调制解调链路搭建，完成 AWGN 信道仿真，完成 BER 统计与理论曲线对比，完成星座图输出，并统一规范了仿真输出文件的保存路径。
+
+当前待解决的问题是：系统仍处于未编码基准链路阶段，尚未加入信道编码和译码模块，因此无法体现编码增益，也无法比较不同编码方案在 AWGN 信道下的性能差异。
+
+\noindent\textbf{4.2 待解决或新出现问题分析}
+
+下一阶段的主要问题是如何在现有 QPSK/AWGN 链路中加入编码与译码过程。加入编码后，仿真链路中的比特流长度、码率、调制映射、解调软信息或硬判决信息、译码输入格式都会影响最终 BER 统计结果。因此后续需要重点保证编码前后比特长度匹配，并明确横轴 $E_b/N_0$ 是否需要根据码率进行换算。
+
+\noindent\textbf{4.3 待解决或新出现问题工作思路及下一周工作计划}
+
+下一周计划在 \texttt{chapterA} 已完成的未编码 QPSK/AWGN 基础链路上添加编码和译码部分。具体工作包括：选择合适的信道编码方案，完成编码器和译码器接入，整理码率对信噪比换算的影响，输出编码前后的 BER 曲线对比，并分析编码方案带来的性能提升。
+
+\end{document}
