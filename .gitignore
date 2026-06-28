@@ -1,0 +1,92 @@
+# Project-local large/raw reference materials
+material/original/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.Spotlight-V100/
+.Trashes/
+
+# Editor and IDE metadata
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+*.bak
+*.orig
+
+# Python cache, if scripts are added later
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# C/C++ build outputs, if fixed-point models are added later
+build/
+cmake-build-*/
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+*.out
+
+# MATLAB/Simulink generated files
+*.asv
+*.m~
+slprj/
+sccprj/
+codegen/
+*_ert_rtw/
+*_grt_rtw/
+*.slxc
+*.mex*
+
+# Vivado/Xilinx generated files
+*.jou
+*.str
+*.xpr.zip
+*.runs/
+*.cache/
+*.hw/
+*.ip_user_files/
+*.sim/
+*.srcs/sources_1/ip/*/
+.Xil/
+webtalk*.log
+webtalk*.jou
+vivado*.backup.jou
+vivado*.backup.log
+
+# LaTeX build artifacts
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.lof
+*.lot
+*.out
+*.run.xml
+*.synctex.gz
+*.toc
+
+# Office temporary files
+~$*.docx
+~$*.pptx
+~$*.xlsx
