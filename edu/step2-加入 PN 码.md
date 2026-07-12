@@ -1,437 +1,345 @@
-# Step 2：加入 PN 码，形成单路直接序列扩频链路
+# Step 2：加入 PN 码（零基础版）
 
-本文对应《老师十步法：CDMA 无线数据传输链路设计与实现教学》的第二步。它在 Step 1 的 QPSK + AWGN 基础链路中加入 PN 扩频和理想同步解扩：
+这一步只做一件事：在 Step 1 的 QPSK 通信链路中加入 PN 码。
 
-```text
-随机比特
-  -> QPSK 调制
-  -> PN 扩频
-  -> 理想/AWGN 信道
-  -> 同相 PN 解扩
-  -> QPSK 解调
-  -> BER 统计
-```
-
-这一步只解决「PN 码怎样产生、符号怎样变成码片、怎样解扩、能量怎样守恒、数据怎样对齐」。接收端仍然完全知道 PN 的起始相位和码片时钟；PN 捕获属于 Step 3，不在本步实现。
-
----
-
-## 1. 本阶段目标
-
-Step 2 需要完成以下目标：
-
-| 目标 | 说明 |
-| --- | --- |
-| 生成可重现的 PN 序列 | 固定递推式、初态、输出位和零相位 |
-| 验证 PN 性质 | 检查周期、0/1 数量和周期自相关 |
-| 实现复 PN 扩频 | QPSK 符号扩展为 `L` 个复码片 |
-| 实现共轭解扩 | 对每组 `L` 个码片相关积分 |
-| 统一能量口径 | 使每个扩频符号的总能量等于扩频前符号能量 |
-| 对齐 Step 1 基线 | 在相同 `Eb/N0` 下，扩频链路 BER 应与 QPSK 基线一致 |
-| 理解处理增益 | 区分固定 `Eb/N0` 和固定 chip SNR 两种实验 |
-
-完成本阶段后，你应该能够回答：
-
-1. PN 序列为什么「看起来随机，但可以完全重现」。
-2. QPSK 符号如何被扩展为 `L` 个 chip。
-3. 复 PN 解扩为什么必须乘以 PN 的共轭。
-4. 为什么公平的纯 AWGN 对比中，扩频不会凭空改善 BER。
-5. PN 相位错一个 chip 时，解扩结果为什么会严重恶化。
-
----
-
-## 2. 本步的边界与继承关系
-
-### 2.1 从 Step 1 直接复用的模块
-
-| Step 1 模块 | Step 2 中的处理 |
-| --- | --- |
-| 随机比特源 | 原样复用 |
-| Gray QPSK 调制 | 原样复用，仍令 `Es = 1` |
-| AWGN 模型 | 保留 `Eb/N0 -> N0` 的定义，但噪声加在 chip 上 |
-| QPSK 硬判决 | 对解扩后的符号判决 |
-| BER 统计 | 原样复用，比较同一原始索引的比特 |
-| QPSK 理论 BER | 作为 Step 1/Step 2 共同基线 |
-
-### 2.2 本步新增的模块
+先不要被「PN 码」、「扩频」和「解扩」这些名字吓到。本步最核心的操作其实只有乘法：
 
 ```text
-pn_generate
-complex_pn_build
-pn_spread
-pn_despread
-pn_autocorrelation_test
-energy_consistency_test
+发送端：原信号 乘 PN 码
+接收端：收到的信号 再乘同一条 PN 码
 ```
 
-### 2.3 本步明确不做的事
-
-- 不搜索 PN 相位，收发两端从同一零相位开始。
-- 不加入收发时钟频差或采样误差。
-- 不加入 Walsh 码和多逻辑信道。
-- 不加入多径、Rake、FEC、交织和定点化。
-- 不将教学用短 m 序列冒充为 IS-95 I/Q 短码。
-
-只有先在理想同步条件下证明扩频和解扩正确，Step 3 的 PN 捕获失败时才能确定错误在「同步」，而不是在基本数据通路。
+因为 PN 码只有 `+1` 和 `-1`，而正一乘正一等于一，负一乘负一也等于一，所以 PN 码的影响可以被消掉。
 
 ---
 
-## 3. bit、symbol 和 chip
+## 1. 本步要做出什么
 
-这三个时间单位必须分清：
+Step 1 的链路是：
 
-| 单位 | 本步含义 | 数量关系 |
+```text
+随机比特 -> QPSK 调制 -> 加噪声 -> QPSK 解调 -> 统计错误
+```
+
+Step 2 把它变成：
+
+```text
+随机比特 -> QPSK 调制 -> 乘 PN -> 加噪声
+             -> 再乘同一条 PN -> QPSK 解调 -> 统计错误
+```
+
+本步只验证三件事：
+
+1. PN 码能按照固定规则重复生成。
+2. 没有噪声时，接收端可以完全恢复原数据。
+3. 加入噪声后，结果能与 Step 1 对上。
+
+本步暂时假设接收端已经知道 PN 从哪里开始。怎样找到 PN 的开始位置，是 Step 3 的内容。
+
+---
+
+## 2. 先认识三个单位
+
+| 名字 | 中文 | 简单理解 |
 | --- | --- | --- |
-| bit | QPSK 调制器的输入 | 2 bit/符号 |
-| symbol | 一个复 QPSK 点 | `Nbits/2` |
-| chip | PN 扩频后的高速样值 | `L` chip/符号 |
+| bit | 比特 | 原始的 0 或 1 |
+| symbol | 符号 | QPSK 把 2 个 bit 合成的一个复数 |
+| chip | 码片 | 一个符号乘 PN 后得到的小片段 |
 
-若有 `Nbits` 个比特，QPSK 每符号携带 2 bit，扩频因子为 `L`，则：
-
-```text
-Nsymbols = Nbits / 2
-Nchips   = Nsymbols * L
-```
-
-例如 `Nbits = 2000`、`L = 31`：
+例如：
 
 ```text
-Nsymbols = 1000
-Nchips   = 31000
+100 个 bit -> 50 个 QPSK 符号 -> 200 个 chip
 ```
 
-扩频增加了每个数据符号的样值数和占用带宽，但没有增加原始信息量。
+这里假设一个 QPSK 符号变成 4 个 chip。一个符号变成多个 chip，就是「扩展」的最直观含义。
 
 ---
 
-## 4. PN 序列与 LFSR
+## 3. PN 码到底是什么
 
-### 4.1 PN 是什么
+PN 的中文名字是「伪噪声」。「伪」的意思是：它看起来没有规律，但实际上是由程序按照固定规则生成的。
 
-PN 是 pseudo-noise，即伪噪声序列。它具有三个同时存在的特点：
-
-1. 在时域上看起来像随机的 0/1 序列。
-2. 它由确定性的逻辑递推生成。
-3. 只要生成规则和初始状态相同，收发两端就能产生完全相同的序列。
-
-PN 序列不是加密随机数。在本项目中，它用于扩频和相关同步。
-
-### 4.2 先用明确递推式，避免抽头约定混乱
-
-教学阶段使用 5 级 m 序列，对应多项式：
+例如，一条很短的示意 PN 可以是：
 
 ```text
-g(x) = x^5 + x^2 + 1
++1, -1, +1, +1, -1, -1, +1
 ```
 
-本文不只写「抽头是 5 和 2」，而是直接冻结为无歧义的递推式：
+发送端和接收端使用相同的生成规则，就能得到完全相同的 PN。它不是新数据，而是用来改变原信号的样子。
+
+---
+
+## 4. 用手算例子理解扩频
+
+先不考虑 QPSK 复数。假设要发送的原信号是 `+2`，使用的 PN 是：
 
 ```text
-s[n+5] = s[n+2] XOR s[n]
+PN = [+1, -1, +1, -1]
 ```
 
-以下定义也必须一起冻结：
+先把 `+2` 复制 4 份，再与 PN 逐个相乘：
 
-| 项目 | 本文约定 |
+```text
+[+2, +2, +2, +2]
+乘
+[+1, -1, +1, -1]
+等于
+[+2, -2, +2, -2]
+```
+
+原来只有一个数，现在变成了 4 个 chip。这就是扩频。本例的扩频长度记为 `L = 4`。
+
+---
+
+## 5. 接收端怎样还原
+
+接收端用同一条 PN 再乘一次：
+
+```text
+[+2, -2, +2, -2]
+乘
+[+1, -1, +1, -1]
+等于
+[+2, +2, +2, +2]
+```
+
+然后取平均：`(2 + 2 + 2 + 2) / 4 = 2`。原信号就被恢复了。这个过程叫解扩。
+
+```text
+扩频 = 复制原符号，然后乘 PN
+解扩 = 再乘同一条 PN，然后相加
+```
+
+---
+
+## 6. 如果 PN 用错了
+
+假设接收端错用了 `[+1, +1, -1, -1]`，相乘后得到 `[+2, -2, -2, +2]`，平均值为 0，原信号没有被恢复。
+
+即使 PN 内容正确，但开始位置错了一格，也会解错。Step 2 先保证收发两端使用同一条、同一起点的 PN；Step 3 再学习如何找到正确起点。
+
+---
+
+## 7. 放回 QPSK 链路
+
+Step 1 中，2 个 bit 变成一个 QPSK 符号。QPSK 符号是复数，例如 `(1+j)/sqrt(2)`。
+
+现在只需知道，QPSK 符号有 I 和 Q 两个部分：
+
+```text
+I = 复数的实部
+Q = 复数的虚部
+```
+
+可以给 I 和 Q 分别准备一条 PN，然后合成一个复 PN：
+
+```text
+complexPN = (PN-I + j * PN-Q) / sqrt(2)
+```
+
+它看起来比较复杂，但本质仍然是：发送端乘 PN，接收端用同一个 PN 把它消掉。
+
+---
+
+## 8. 为什么代码中有 `conj`
+
+使用复 PN 时，记住：
+
+```text
+发送端：乘 complexPN
+接收端：乘 conj(complexPN)
+```
+
+`conj` 叫共轭。它只是把复数虚部的正负号反过来：
+
+```text
+conj(1 + 2j) = 1 - 2j
+```
+
+这样可以把复 PN 引入的变化消掉。如果忘记 `conj`，解出来的 QPSK 点可能旋转或互相抵消。
+
+---
+
+## 9. 为什么要除以 `sqrt(L)`
+
+如果把原符号直接复制成 `L` 份，总能量会变成原来的 `L` 倍。这样 Step 2 和 Step 1 的比较就不公平。
+
+为了让扩频前后总能量不变：
+
+```text
+扩频 chip = 原符号 * PN / sqrt(L)
+恢复符号 = sum(接收 chip * PN的共轭) / sqrt(L)
+```
+
+可以先把它理解为发送端和接收端各负责一半缩放。最后只需检查：扩频前一个符号的能量，等于扩频后它对应的 `L` 个 chip 的总能量。
+
+---
+
+## 10. 噪声和处理增益
+
+处理增益是扩频通信中常见的词。先不要把它理解成「一加 PN，所有噪声就消失」。
+
+解扩时，正确的有用信号会按照同一条 PN 叠加，而与 PN 无关的干扰不容易以相同方式叠加。
+
+如果 Step 1 和 Step 2 都固定每个原始 bit 的总能量，那么在只有 AWGN 噪声的情况下，两者 BER 应该差不多：
+
+```text
+无噪声：Step 2 BER = 0
+有噪声：Step 2 BER 接近 Step 1 的 QPSK BER
+```
+
+如果 Step 2 突然比 Step 1 好非常多，很可能是扩频后总能量变大了。
+
+---
+
+## 11. 第一遍编程：只处理一个符号
+
+先不写 PN 发生器，直接手写一条短 PN：
+
+```matlab
+clear; clc;
+
+% Step 1 中的一个 QPSK 符号。
+txSymbol = (1 + 1j) / sqrt(2);
+
+% 一个符号变成 4 个 chip。
+L = 4;
+pn = [1; -1; 1; -1];
+
+% 发送端：复制符号并乘 PN。
+repeatedSymbol = repmat(txSymbol, L, 1);
+txChips = repeatedSymbol .* pn / sqrt(L);
+
+% 先不加噪声。
+rxChips = txChips;
+
+% 接收端：再乘 PN，然后相加。
+rxSymbol = sum(rxChips .* conj(pn)) / sqrt(L);
+
+disp(txSymbol);
+disp(rxSymbol);
+disp(abs(rxSymbol - txSymbol));
+```
+
+最后的误差应为 0，或者是非常接近 0 的小数。先确保这个小程序正确，再处理很多符号。
+
+---
+
+## 12. 第二遍编程：处理多个符号
+
+假设 `txSymbols` 是 Step 1 输出的一列 QPSK 符号：
+
+```matlab
+L = 31;
+nSymbols = numel(txSymbols);
+nChips = nSymbols * L;
+
+% 每个符号复制 L 次。
+repeatedSymbols = repelem(txSymbols(:), L);
+
+% 生成与所有 chip 等长的 PN。
+pnBits = pn5_generate(nChips, [1 1 1 1 1]);
+pn = 1 - 2*pnBits;
+
+% 扩频。
+txChips = repeatedSymbols .* pn / sqrt(L);
+
+% 无噪声信道。
+rxChips = txChips;
+
+% 每 L 个 chip 分为一组，分别相加。
+afterPN = rxChips .* conj(pn);
+chipGroups = reshape(afterPN, L, []);
+rxSymbols = sum(chipGroups, 1).' / sqrt(L);
+
+% 检查恢复误差。
+maxSymbolError = max(abs(rxSymbols - txSymbols(:)));
+disp(maxSymbolError);
+```
+
+`reshape` 在这里只是把一长串 chip 重新分组：
+
+```text
+第 1 到 L 个 chip       -> 第 1 个符号
+第 L+1 到 2L 个 chip    -> 第 2 个符号
+第 2L+1 到 3L 个 chip   -> 第 3 个符号
+```
+
+---
+
+## 13. 第三遍编程：改成 I/Q 两条 PN
+
+只用一条 PN 跑通后，再改成 I/Q 两条 PN：
+
+```matlab
+pnIBits = pn5_generate(nChips, [1 1 1 1 1]);
+pnQBits = pn5_generate(nChips, [1 0 1 0 1]);
+
+pnI = 1 - 2*pnIBits;
+pnQ = 1 - 2*pnQBits;
+complexPN = (pnI + 1j*pnQ) / sqrt(2);
+
+% 扩频。
+txChips = repeatedSymbols .* complexPN / sqrt(L);
+
+% 先不加噪声。
+rxChips = txChips;
+
+% 解扩时必须使用 conj。
+afterPN = rxChips .* conj(complexPN);
+chipGroups = reshape(afterPN, L, []);
+rxSymbols = sum(chipGroups, 1).' / sqrt(L);
+```
+
+再次检查 `rxSymbols` 和 `txSymbols` 是否相同。这一项通过之前，不要加噪声。
+
+---
+
+## 14. 无噪声正确后再加噪声
+
+Step 1 已经把 QPSK 符号的平均能量设为 1。每个 QPSK 符号携带 2 个 bit，所以每 bit 能量是 `Eb = 1/2`。
+
+```matlab
+ebN0dB = 6;
+ebN0 = 10^(ebN0dB/10);
+
+Eb = 1/2;
+N0 = Eb/ebN0;
+
+noise = sqrt(N0/2) * ...
+    (randn(size(txChips)) + 1j*randn(size(txChips)));
+
+rxChips = txChips + noise;
+```
+
+这里先简单理解各个名字：
+
+| 名字 | 简单含义 |
 | --- | --- |
-| 状态排列 | `[s[n], s[n+1], s[n+2], s[n+3], s[n+4]]` |
-| 输出位 | 当前状态的第 1 位 `s[n]` |
-| 新输入位 | `s[n] XOR s[n+2]` |
-| 移位方向 | 删除第 1 位，新位加到末尾 |
-| PN-I 初态 | `[1 1 1 1 1]` |
-| PN-Q 初态 | `[1 0 1 0 1]` |
-| 全零态 | 禁止 |
-| 周期 | `2^5 - 1 = 31` chip |
-| 零相位 | 装载指定初态后输出的第 1 个 chip |
+| `Eb` | 每个原始 bit 的能量 |
+| `N0` | 表示噪声强度的量 |
+| `Eb/N0` | 有用信号和噪声的相对强弱 |
+| `ebN0dB` | 用 dB 表示的 `Eb/N0` |
 
-全零状态会永远停留在全零，因此不能作为 LFSR 初态。
-
-### 4.3 0/1 到双极性码片的映射
-
-LFSR 输出是 0/1，乘法扩频需要 `+1/-1`。本文固定：
-
-```text
-p[n] = 1 - 2*c[n]
-```
-
-因此：
-
-| LFSR bit `c[n]` | 双极性 chip `p[n]` |
-| --- | --- |
-| 0 | +1 |
-| 1 | -1 |
-
-使用相反映射未必会让自环链误码，但会让你无法和他人的中间测试向量逐 chip 对比，所以必须明文记录。
-
-### 4.4 为什么先用 31 chip，不直接写 IS-95 短码
-
-31 chip 序列可以快速穷举所有状态、手工检查前若干 chip，也能很快绘制完整的周期自相关。它的作用是验证 LFSR 和扩频通路，不是代替最终标准码。
-
-切换到 IS-95 I/Q 短码时，必须从课程指定标准或老师提供的测试向量冻结：
-
-```text
-多项式
-移位方向
-输出抽头
-初始状态
-零插入规则
-I/Q 码的组合方式
-前若干百个 chip 的参考向量
-```
-
-「自相关有主峰」只能证明你生成了某种 PN 序列，不能证明它就是指定的 IS-95 短码。
+`Eb/N0` 越大，通常表示信号相对噪声越强，BER 会越低。
 
 ---
 
-## 5. PN 序列的单元测试
+## 15. 教学用 PN 发生器
 
-不要把 PN 发生器直接接入整条链路后才检查。先完成以下独立测试。
-
-### 5.1 固定向量测试
-
-保存 PN-I 和 PN-Q 的前 31 个 0/1 输出作为本项目的黄金向量。以后修改代码时，必须逐 chip 比较，而不是只看波形大致相似。
-
-### 5.2 周期测试
-
-对于本文的 5 级本原 LFSR：
-
-1. 前 31 个非零状态不应重复。
-2. 生成 31 chip 后，状态应回到初态。
-3. 第 32 个输出应等于第 1 个输出。
-
-### 5.3 平衡性测试
-
-长度 31 的 m 序列在一个周期内，1 的个数和 0 的个数相差 1。这是健全性检查，不能代替参考向量测试。
-
-### 5.4 周期自相关测试
-
-对双极性 PN `p[n]` 定义归一化周期自相关：
-
-```text
-Rpp[tau] = (1/N) * sum(p[n] * p[(n+tau) mod N])
-```
-
-对长度 `N = 31` 的 m 序列，预期：
-
-```text
-Rpp[0]   = 1
-Rpp[tau] = -1/31, tau != 0
-```
-
-这个特性说明正确相位的相关值很大，错误相位的相关值很小，它是 Step 3 做 PN 捕获的基础。
-
----
-
-## 6. 从 QPSK 符号构造复 PN 码
-
-### 6.1 实 PN 扩频
-
-若输入是实 BPSK 符号 `a[k]`，可以使用实双极性 PN `p[n]`：
-
-```text
-x[kL+l] = a[k] * p[kL+l] / sqrt(L)
-```
-
-### 6.2 复 PN 扩频
-
-Step 1 的输出是复 QPSK 符号，本步使用两条双极性序列构造单位模复 PN：
-
-```text
-pc[n] = (pI[n] + j*pQ[n]) / sqrt(2)
-```
-
-因为 `pI[n]` 和 `pQ[n]` 只能取 `+1/-1`，所以：
-
-```text
-|pc[n]|^2 = (pI[n]^2 + pQ[n]^2) / 2 = 1
-```
-
-扩频信号定义为：
-
-```text
-x[n] = a[floor(n/L)] * pc[n] / sqrt(L)
-```
-
-实现时，先将每个 QPSK 符号重复 `L` 次，再逐 chip 乘以复 PN。「重复」只是用来产生与 PN 等长的符号序列；真正的扩频操作是乘 PN。
-
-### 6.3 一个符号的直观例子
-
-设：
-
-```text
-a[0] = (1+j)/sqrt(2)
-L = 4
-pc = [1, j, -1, -j]
-```
-
-则能量守恒的扩频结果为：
-
-```text
-x = a[0] * pc / sqrt(4)
-```
-
-每个 chip 的幅度只是原符号的 `1/sqrt(L)`，但 `L` 个 chip 的总能量不变。
-
----
-
-## 7. 能量守恒归一化
-
-### 7.1 本项目的统一规则
-
-Step 1 中 QPSK 平均符号能量为：
-
-```text
-Es = E{|a[k]|^2} = 1
-```
-
-本步对扩频信号除以 `sqrt(L)`。对任意符号 `a[k]`：
-
-```text
-sum(|x[kL+l]|^2, l=0...L-1)
-= sum(|a[k]|^2 * |pc[kL+l]|^2 / L)
-= |a[k]|^2
-```
-
-因此：
-
-| 量 | 预期值 |
-| --- | --- |
-| 扩频前平均符号能量 | 1 |
-| 扩频后平均 chip 能量 | `1/L` |
-| 每个符号对应的 `L` chip 总能量 | 1 |
-| QPSK 每比特能量 `Eb` | `Es/2 = 1/2` |
-
-### 7.2 另一种规则为什么不能混用
-
-另一种常见实现让每个 chip 幅度保持为 1，解扩时再除以 `L`。它也能正确恢复符号，但此时一个符号的总发射能量增加为 `L` 倍。
-
-两种方法都可用，但不能在扩频、加噪和解扩三处混用两套口径。本教学后续统一使用能量守恒规则。
-
----
-
-## 8. 理想同步解扩
-
-### 8.1 解扩公式
-
-接收端使用与发送端完全同相的复 PN：
-
-```text
-z[k] = sum(r[kL+l] * conj(pc[kL+l]), l=0...L-1) / sqrt(L)
-```
-
-在无噪声时，`r = x`：
-
-```text
-z[k]
-= sum(a[k] * pc * conj(pc) / sqrt(L)) / sqrt(L)
-= a[k] * sum(|pc|^2) / L
-= a[k]
-```
-
-因此解扩输出应在数值精度范围内等于原 QPSK 符号。
-
-### 8.2 为什么必须用共轭
-
-对复数 `pc`：
-
-```text
-pc * conj(pc) = |pc|^2 = 1
-```
-
-如果误写成 `pc * pc`，结果不再恒等于 1，I/Q 分量会产生相位旋转、符号翻转或相互抵消。只有实值 `+1/-1` PN 时，`p = conj(p)`，这个错误才可能被掩盖。
-
-### 8.3 本步的「理想同步」是什么
-
-理想同步意味着：
-
-```text
-接收端第 1 个解扩 chip
-= 发送端第 1 个扩频 chip
-= 两端 PN 零相位的第 1 个 chip
-```
-
-接收端不搜索这个起点，而是由仿真器直接提供。可以主动将接收 PN 循环移位 1 chip 作为反例实验，但不能在本步写搜索器去自动修正它。
-
----
-
-## 9. AWGN 与 `Eb/N0` 口径
-
-### 9.1 公平的 Step 1/Step 2 对比
-
-QPSK 符号仍然满足：
-
-```text
-Es = 1
-Eb = Es / 2 = 0.5
-gamma_b = 10^(EbN0_dB/10)
-N0 = Eb / gamma_b
-```
-
-对扩频后的每个复 chip 加入：
-
-```text
-n = sqrt(N0/2) * (randn + j*randn)
-r = x + n
-```
-
-经过能量守恒的相关解扩，输出噪声的复方差仍为 `N0`。所以在同一 `Eb/N0` 下，Step 2 的 BER 应该在统计误差内贴近 Step 1 和理论 Gray QPSK 曲线：
-
-```text
-Pb = 0.5 * erfc(sqrt(Eb/N0))
-```
-
-这不是 PN 没有作用，而是因为比较时已经把每个信息 bit 的总能量固定了。
-
-### 9.2 不要直接对扩频 chip 调用 `awgn(..., 'measured')`
-
-本步能量守恒归一化后，每 chip 平均功率是 `1/L`。如果把 Step 1 的每符号 SNR 数值原样交给按测得功率加噪的工具，噪声口径很容易被隐式改变。
-
-初次实现建议显式按上式生成复高斯噪声。若以后改用工具箱函数，必须先推导它要求的是 `Eb/N0`、每 chip SNR 还是每符号 `Es/N0`。
-
----
-
-## 10. 处理增益的正确理解
-
-扩频因子为：
-
-```text
-L = Rc / Rs
-Gp = 10*log10(L) dB
-```
-
-教学用 `L = 31` 时：
-
-```text
-Gp = 10*log10(31) ≈ 14.91 dB
-```
-
-但「处理增益约为 14.91 dB」不等于「在相同 `Eb/N0` 下，AWGN BER 曲线平移 14.91 dB」。
-
-| 实验固定量 | 扩频后现象 |
-| --- | --- |
-| 每信息 bit 的 `Eb/N0` | 纯 AWGN 下 BER 与未扩频 QPSK 基本一致 |
-| 每 chip 的 SNR | 相关累加后符号 SNR 约提高 `L` 倍 |
-| 窄带或非相关宽带干扰功率 | 解扩将干扰能量分散，有用信号相干累加 |
-
-报告中只写「扩频后抗噪声能力更强」是不够的，必须同时写明比较时固定了什么量。
-
----
-
-## 11. MATLAB 参考实现
-
-下面的代码使用基本 MATLAB 语法完成核心通路，不依赖 PN 或 AWGN 工具箱函数。
-
-### 11.1 PN 发生器
+先直接使用下面的函数。第一遍学习时，不需要立即弄懂每一行。
 
 ```matlab
 function bits = pn5_generate(nChips, initialState)
     state = logical(initialState(:).');
 
     if numel(state) ~= 5 || ~any(state)
-        error('initialState must be a nonzero 5-bit vector.');
+        error('Initial state must be a nonzero 5-bit vector.');
     end
 
     bits = false(nChips, 1);
+
     for n = 1:nChips
         bits(n) = state(1);
         newBit = xor(state(1), state(3));
@@ -442,343 +350,113 @@ function bits = pn5_generate(nChips, initialState)
 end
 ```
 
-这段代码直接实现 `s[n+5] = s[n+2] XOR s[n]`。如果你改变状态排列或移位方向，必须同时重新定义递推式和参考向量。
+把它保存为 `pn5_generate.m`。它每次根据前面的 5 个 0/1 算出一个新的 0/1，会产生一条可重复的 PN。
 
-### 11.2 扩频与解扩
-
-```matlab
-function [txChips, complexPN] = pn_spread(txSymbols, spreadingFactor)
-    nSymbols = numel(txSymbols);
-    nChips = nSymbols * spreadingFactor;
-
-    pnIBits = pn5_generate(nChips, [1 1 1 1 1]);
-    pnQBits = pn5_generate(nChips, [1 0 1 0 1]);
-    pnI = 1 - 2 * pnIBits;
-    pnQ = 1 - 2 * pnQBits;
-    complexPN = (pnI + 1j * pnQ) / sqrt(2);
-
-    repeatedSymbols = repelem(txSymbols(:), spreadingFactor);
-    txChips = repeatedSymbols .* complexPN / sqrt(spreadingFactor);
-end
-
-function rxSymbols = pn_despread(rxChips, complexPN, spreadingFactor)
-    if numel(rxChips) ~= numel(complexPN)
-        error('rxChips and complexPN must have equal lengths.');
-    end
-    if mod(numel(rxChips), spreadingFactor) ~= 0
-        error('Chip count must be divisible by spreadingFactor.');
-    end
-
-    correlatedChips = rxChips(:) .* conj(complexPN(:));
-    chipMatrix = reshape(correlatedChips, spreadingFactor, []);
-    rxSymbols = sum(chipMatrix, 1).' / sqrt(spreadingFactor);
-end
-```
-
-MATLAB 的 `reshape(..., L, [])` 将每个符号对应的连续 `L` 个 chip 放到同一列，然后按列求和。如果你的数据是行向量，建议先用 `(:)` 统一成列向量，避免隐式扩展生成巨大矩阵。
-
-### 11.3 核心主流程
+程序中这一行：
 
 ```matlab
-rng(2026);
-
-nBits = 2e5;
-L = 31;
-ebN0dB = 6;
-
-% Reuse the Step 1 Gray QPSK modulator here.
-txBits = randi([0 1], nBits, 1);
-txSymbols = qpsk_modulate(txBits);       % Es = 1
-
-[txChips, complexPN] = pn_spread(txSymbols, L);
-
-% Energy checks.
-symbolEnergyBefore = mean(abs(txSymbols).^2);
-chipMatrix = reshape(txChips, L, []);
-symbolEnergyAfter = mean(sum(abs(chipMatrix).^2, 1));
-assert(abs(symbolEnergyBefore - symbolEnergyAfter) < 1e-12);
-
-% Explicit Eb/N0-based complex AWGN.
-ebN0Linear = 10^(ebN0dB / 10);
-Eb = 1/2;
-N0 = Eb / ebN0Linear;
-noise = sqrt(N0/2) * ...
-    (randn(size(txChips)) + 1j*randn(size(txChips)));
-rxChips = txChips + noise;
-
-rxSymbols = pn_despread(rxChips, complexPN, L);
-rxBits = qpsk_demodulate(rxSymbols);     % Reuse Step 1
-ber = mean(txBits ~= rxBits);
-```
-
-`qpsk_modulate` 和 `qpsk_demodulate` 应直接复用 Step 1 已通过测试的映射，不要在 Step 2 中另写一套不同的比特顺序。
-
-### 11.4 PN 周期自相关
-
-```matlab
-pnBits = pn5_generate(31, [1 1 1 1 1]);
 pn = 1 - 2*pnBits;
-periodicAutocorrelation = zeros(31, 1);
-
-for delay = 0:30
-    periodicAutocorrelation(delay + 1) = ...
-        mean(pn .* circshift(pn, -delay));
-end
-
-assert(abs(periodicAutocorrelation(1) - 1) < 1e-12);
-assert(max(abs(periodicAutocorrelation(2:end) + 1/31)) < 1e-12);
-stem(0:30, periodicAutocorrelation, 'filled');
-grid on;
-xlabel('Cyclic delay (chip)');
-ylabel('Normalized periodic autocorrelation');
 ```
+
+只是把生成器输出的 0/1 改成扩频需要的 `+1/-1`：
+
+| 原数字 | 改成 |
+| --- | --- |
+| 0 | +1 |
+| 1 | -1 |
+
+本函数会在 31 个 chip 后开始重复。这里的 31 chip PN 只是为了教学和调试方便，不是最终的 IS-95 PN 短码。最终版本要按老师给定的参数和参考数据替换。
 
 ---
 
-## 12. 必做实验
+## 16. 建议的实验顺序
 
-### 实验 1：PN 发生器单元测试
+### 实验 1：手算小例子
 
-1. 生成 PN-I 和 PN-Q 的前 31 chip。
-2. 导出并保存为参考向量。
-3. 验证 31 chip 后状态回到初态。
-4. 统计 0/1 个数，检查平衡性。
-5. 绘制归一化周期自相关。
+用 4 个 chip 的手写 PN，确认能从 `[+2, -2, +2, -2]` 恢复出 `+2`。
 
-通过条件：所有断言通过，零延迟相关值为 1，其余延迟为 `-1/31`。
+### 实验 2：只发送一个 QPSK 符号
 
-### 实验 2：无噪声符号恢复
+运行第 11 节的 MATLAB 代码，要求恢复误差接近 0。
 
-使用固定比特序列：
+### 实验 3：发送固定的四组 bit
+
+使用 Step 1 中的：
 
 ```text
 00 01 11 10
 ```
 
-依次检查：
+无噪声时，解扩后的 4 个 QPSK 符号必须与发送符号相同，BER 必须为 0。
 
-```text
-QPSK 符号
-每个符号对应的前几个扩频 chip
-解扩符号
-解调比特
+### 实验 4：检查能量
+
+可以用下面的代码比较扩频前后的能量：
+
+```matlab
+chipGroups = reshape(txChips, L, []);
+energyBefore = mean(abs(txSymbols).^2);
+energyAfter = mean(sum(abs(chipGroups).^2, 1));
+
+disp(energyBefore);
+disp(energyAfter);
 ```
 
-通过条件：
+两个结果应该都接近 1。
 
-```text
-max(abs(rxSymbols - txSymbols)) < 1e-12
-BER = 0
-```
+### 实验 5：加入噪声
 
-### 实验 3：能量守恒
+先使用 `Eb/N0 = 6 dB`，确认能够得到合理的 BER。然后再扫描 `0:1:10 dB`，画出 Step 2 的 BER 曲线。
 
-对至少 1000 个随机 QPSK 符号，比较：
+### 实验 6：与 Step 1 对比
 
-```text
-E_before = mean(abs(txSymbols).^2)
-E_after  = mean(sum(abs(chips_per_symbol).^2))
-```
+在同一张图上画出 Step 1 QPSK BER、Step 2 PN 扩频 BER 和 QPSK 理论 BER。三条曲线应基本对齐。
 
-通过条件：`E_before` 和 `E_after` 的绝对误差小于 `1e-12`。
+### 实验 7：故意把 PN 错开一格
 
-### 实验 4：AWGN BER 基线对齐
+把接收端的 PN 移动 1 chip，再做解扩。输出应明显变差。这可以帮你理解 Step 3 为什么要找 PN 的正确开始位置。
 
-扫描：
+---
 
-```text
-Eb/N0 = 0:1:10 dB
-```
+## 17. 最容易出错的地方
 
-在同一幅图绘制：
-
-1. Step 1 未扩频 QPSK 仿真 BER。
-2. Step 2 PN 扩频 QPSK 仿真 BER。
-3. Gray QPSK 理论 BER。
-
-高信噪比点应使用「达到最小错误数或最大比特数」的停止规则。三条曲线应在统计波动范围内一致，不应出现固定 dB 平移。
-
-### 实验 5：故意注入 PN 相位错误
-
-将接收端 PN 循环移位 `0:30` chip，记录每个偏移下的：
-
-```text
-|解扩符号平均幅度|
-BER
-```
-
-本实验只画出「已知偏移 -> 性能」的曲线，不在接收机中自动搜索最佳偏移。你应观察到偏移为 0 时符号恢复正确，错相时有用相关能量大幅下降。
-
-### 实验 6：处理增益口径对照
-
-分成两组仿真：
-
-| 组别 | 固定条件 | 预期结果 |
+| 现象 | 可能原因 | 先怎样查 |
 | --- | --- | --- |
-| A | 固定每 bit `Eb/N0`，使用能量守恒扩频 | 不同 `L` 的 BER 与 QPSK 基线一致 |
-| B | 固定每 chip SNR，使用同一 chip 幅度口径 | 解扩后 SNR 随 `L` 约线性增长 |
+| 无噪声也不能恢复 | 发送和接收的 PN 不一样 | 打印前 20 个 PN 逐个对比 |
+| 从第 2 个符号开始错 | chip 分组错位 | 检查是否每 `L` 个 chip 一组 |
+| 恢复符号大了很多 | 忘记除以 `sqrt(L)` | 检查扩频和解扩两端 |
+| QPSK 点发生旋转 | 复 PN 解扩时忘记 `conj` | 检查 `rxChips .* conj(complexPN)` |
+| BER 接近 0.5 | PN 起点错了 | 先关掉噪声，用固定短数据测试 |
+| Step 2 比 Step 1 好很多 | 扩频后总能量变大 | 检查扩频前后能量 |
+| 程序突然占用很多内存 | 行向量和列向量相乘生成大矩阵 | 用 `(:)` 统一转为列向量 |
 
-两组结果不能画在一起却共用同一个 `Eb/N0` 标签，否则结论没有可比性。
-
----
-
-## 13. 数据对齐与延迟
-
-本文的纯向量 MATLAB 实现没有滤波器和流水线，因此扩频与块解扩的算法延迟可视为 0，第 `k` 个符号固定对应 chip 索引：
-
-```text
-(k-1)*L + 1 : k*L
-```
-
-但模块接口仍应声明：
-
-| 信号 | 单位 | 长度 | 对齐基准 |
-| --- | --- | --- | --- |
-| `txBits` | bit | `Nbits` | 原始索引 |
-| `txSymbols` | symbol | `Nbits/2` | 每 2 bit 一组 |
-| `txChips` | chip | `Nbits*L/2` | 每 `L` chip 一组 |
-| `rxSymbols` | symbol | `Nbits/2` | 对应同一发送符号 |
-| `rxBits` | bit | `Nbits` | 对应同一原始比特 |
-
-后续加入滤波、缓存或 RTL 流水后，必须用模块的确定性延迟、`valid` 信号或仿真帧序号对齐。不能通过「手工删掉前几个样值，直到 BER 为 0」来调通系统。
+排错时最重要的原则是：先关掉噪声，再把数据量缩小到可以手工检查。
 
 ---
 
-## 14. 推荐程序结构
+## 18. 验收清单
 
-```text
-simulation/step2/
-  run_step2.m
-  config_step2.m
-  pn5_generate.m
-  pn_spread.m
-  pn_despread.m
-  qpsk_modulate.m
-  qpsk_demodulate.m
-  test_pn_generator.m
-  test_noiseless_roundtrip.m
-  test_energy_normalization.m
-  compare_ber_with_step1.m
-  out/
-    pn_reference_vectors.mat
-    pn_periodic_autocorrelation.png
-    ber_step1_step2_theory.png
-    pn_phase_offset_response.png
-    results_step2.mat
-```
-
-建议在 `config_step2.m` 中集中冻结：
-
-| 参数 | 教学阶段建议值 |
+| 项目 | 通过条件 |
 | --- | --- |
-| 随机种子 | `2026` |
-| QPSK 映射 | 与 Step 1 一致，`Es=1` |
-| 扩频因子 | `L=31` |
-| PN-I 初态 | `[1 1 1 1 1]` |
-| PN-Q 初态 | `[1 0 1 0 1]` |
-| PN bit 映射 | `0 -> +1, 1 -> -1` |
-| 扩频归一化 | 发送端除以 `sqrt(L)` |
-| 解扩归一化 | 相关求和后除以 `sqrt(L)` |
-| `Eb/N0` 范围 | `0:1:10 dB` |
-| PN 相位 | 0 chip，理想已知 |
-
----
-
-## 15. 验收标准
-
-| 验收项 | 要求 |
-| --- | --- |
-| PN 定义 | 递推式、状态顺序、初态、输出位、映射和零相位全部记录 |
-| PN 周期 | 31 chip，周期后回到初态 |
-| PN 参考向量 | 每次回归测试逐 chip 一致 |
-| PN 自相关 | 零延迟为 1，非零延迟为 `-1/31` |
-| 复 PN 模值 | `max(abs(abs(complexPN)-1)) < 1e-12` |
-| 能量守恒 | 扩频前符号能量等于对应 chip 总能量 |
-| 理想解扩 | 无噪声时符号最大误差小于 `1e-12` |
+| 手算小例子 | 能从 4 个 chip 完全恢复原数 |
+| PN 发生器 | 同一初始值总能得到同一条 PN |
+| 无噪声符号恢复 | 最大误差小于 `1e-12` |
 | 无噪声 BER | 0 |
-| 复数运算 | 解扩显式使用 `conj(complexPN)` |
-| AWGN BER | 在统计置信范围内对齐 Step 1 和理论 QPSK |
-| 错相注入 | 0 chip 偏移为唯一正确基线，能观察错相性能恶化 |
-| 边界 | 代码中没有隐式 PN 搜索或人工删数据对齐 |
+| 能量 | 扩频前后每符号总能量相同 |
+| 复 PN | 接收端使用 `conj(complexPN)` |
+| 有噪声 BER | 总体随 `Eb/N0` 增大而下降 |
+| Step 1 对比 | Step 2 BER 与 Step 1 基本对齐 |
+| PN 错位 | 错开 1 chip 后结果明显变差 |
 
 ---
 
-## 16. 常见错误与排查
+## 19. 最后只记住这六句话
 
-| 现象 | 可能原因 | 检查方法 |
-| --- | --- | --- |
-| PN 周期不是 31 | 递推抽头、移位方向或初态错误 | 打印每次迭代的 5 bit 状态 |
-| PN 全为 0 | 装载了全零初态 | 在函数入口禁止全零态 |
-| 自相关没有主峰 | 使用了非周期相关或 0/1 未映射为±1 | 确认使用 `circshift` 和双极性序列 |
-| 无噪声解扩不能恢复 | Tx/Rx PN 初态、相位或长度不同 | 逐 chip 比较收发 PN |
-| 输出幅度差 `sqrt(L)` 或 `L` | 扩频/解扩归一化混用 | 用一个符号手算总能量和相关和 |
-| I/Q 翻转或旋转 | 复 PN 解扩没有取共轭 | 检查是否乘 `conj(complexPN)` |
-| BER 接近 0.5 | PN 错相、符号分组错位或 QPSK 映射不一致 | 先回到无噪声固定短向量 |
-| Step 2 比 Step 1 好约 `10log10(L)` dB | 无意中增加了每 bit 总能量 | 检查是否忘记在扩频端除以 `sqrt(L)` |
-| Step 2 比理论差很多 | chip 噪声方差按错误 SNR 口径计算 | 显式从 `Eb=1/2` 计算 `N0` |
-| 程序内存突然很大 | 行/列向量触发了隐式扩展 | 模块入口统一使用 `(:)` |
-| BER 对比错位 | 手工截取数据或每符号 chip 分组错误 | 用原始索引和确定长度自动对齐 |
+1. PN 码是一串可以重复生成的 `+1/-1`。
+2. 扩频就是把一个符号变成多个 chip，并逐个乘 PN。
+3. 解扩就是使用同一条 PN 再乘一次，然后把一组 chip 相加。
+4. 使用复 PN 时，接收端要使用 `conj`。
+5. 为了公平比较，扩频前后每符号的总能量要一样。
+6. Step 2 假设 PN 开始位置已知；Step 3 才学习怎样找到它。
 
----
-
-## 17. 推荐调试顺序
-
-1. 只运行 PN 发生器，验证参考向量、周期和自相关。
-2. 构造复 PN，确认每个 chip 的模为 1。
-3. 只发送一个固定 QPSK 符号，手算扩频和解扩。
-4. 发送 `00 01 11 10`，无噪声验证逐符号和逐比特一致。
-5. 使用随机数据运行能量守恒断言。
-6. 加入单一 `Eb/N0`，检查解扩后星座图。
-7. 扫描 BER，与 Step 1 和理论曲线对齐。
-8. 故意注入 PN 错相，记录相关幅度和 BER 的恶化。
-9. 所有测试通过后，再为 Step 3 保留稳定接口。
-
-这个顺序能把问题依次限定在 PN 生成、复数运算、归一化、噪声口径和对齐五个范围内。
-
----
-
-## 18. 阶段报告建议
-
-```text
-1. 本阶段目标与边界
-   说明只实现理想同步的单路 PN 扩频，未实现 PN 捕获。
-
-2. PN 码定义
-   给出递推式、初态、输出位、双极性映射和零相位。
-
-3. 扩频与解扩模型
-   给出复 PN、能量守恒扩频和共轭相关解扩公式。
-
-4. 参数与能量口径
-   说明 L、Es、Eb、N0 以及 chip 噪声方差。
-
-5. 单元测试
-   展示 PN 参考向量、周期、平衡性和自相关。
-
-6. 端到端仿真
-   展示无噪声恢复、能量检查和 BER 曲线。
-
-7. 结果分析
-   解释 Step 2 为什么在固定 Eb/N0 下与 Step 1 基线一致。
-
-8. 错相实验与下一步
-   用错一 chip 的实验说明 Step 3 为什么需要 PN 捕获。
-```
-
-报告应保留实际参数快照和固定随机种子，使结果可重现。
-
----
-
-## 19. 进入 Step 3 前的交付物
-
-Step 2 完成时应保存：
-
-1. PN 参数快照与前 31 chip 黄金向量。
-2. PN 周期自相关图和自动断言结果。
-3. 无噪声扩频/解扩逐符号一致性结果。
-4. 扩频前后能量对比表。
-5. Step 1、Step 2 和理论 QPSK BER 对比曲线。
-6. PN 相位偏移对相关幅度与 BER 影响的曲线。
-7. 可自动运行的回归测试和结果数据。
-
-本步的核心结论应是：在收发 PN 相位和码片时钟已知时，复 PN 扩频与共轭解扩能够无失真恢复 QPSK 符号；能量守恒归一化下的 AWGN BER 与 Step 1 基线一致。在此基线通过后，Step 3 才开始去掉「PN 相位已知」这一假设，实现 PN 捕获和零相位对齐。
+本步的目标不是背名词，而是能用短 PN 手算扩频和解扩，并且能用程序在无噪声时完整恢复 Step 1 的 QPSK 数据。
