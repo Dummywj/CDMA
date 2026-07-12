@@ -8,7 +8,7 @@
 \usepackage{float}
 \usepackage{url}
 
-\graphicspath{{../../simulation/chapterA/out/}}
+\graphicspath{{../../simulation/step1/out/}}
 
 \setlength{\parindent}{2em}
 \setlength{\parskip}{0.4em}
@@ -32,13 +32,13 @@
 
 \noindent\textbf{一、本周工作目标}
 
-本周的主要目标是完成 \texttt{chapterA} 的基础仿真内容，建立 QPSK 调制信号在 AWGN 信道下的误码率仿真流程，并将仿真误码率与理论误码率进行对比。通过该部分工作，形成后续加入信道编码、译码模块前的基准链路和结果参照。
+本周的主要目标是完成 \texttt{step1} 的基础仿真内容，建立 QPSK 调制信号在 AWGN 信道下的误码率仿真流程，并将仿真误码率与理论误码率进行对比。通过该部分工作，形成后续加入信道编码、译码模块前的基准链路和结果参照。
 
 \noindent\textbf{二、本周工作情况}
 
 \noindent\textbf{2.1 工作完成总体情况}
 
-本周已完成 \texttt{chapterA} 中 QPSK over AWGN BER simulation 的 MATLAB 实现。仿真链路包括随机比特生成、QPSK 调制、AWGN 信道传输、QPSK 解调、误码统计、理论 BER 计算以及结果可视化。脚本位于 \path{simulation/chapterA/qpsk_awgn_ber_toolbox.m}，输出结果统一保存到 \path{simulation/chapterA/out} 目录下。
+本周已完成 \texttt{step1} 中 QPSK over AWGN BER simulation 的 MATLAB 实现。仿真链路包括随机比特生成、QPSK 调制、AWGN 信道传输、QPSK 解调、误码统计、理论 BER 计算以及结果可视化。脚本位于 \path{simulation/step1/qpsk_awgn_ber_toolbox.m}，输出结果统一保存到 \path{simulation/step1/out} 目录下。
 
 仿真使用 MATLAB Communications Toolbox 完成，主要调用 \texttt{qammod}、\texttt{awgn}、\texttt{qamdemod} 和 \texttt{berawgn} 等函数。这样可以减少底层调制解调实现误差，便于将关注点集中在链路建模、信噪比换算和结果分析上。
 
@@ -97,6 +97,6 @@
 
 \noindent\textbf{4.3 待解决或新出现问题工作思路及下一周工作计划}
 
-下一周计划在 \texttt{chapterA} 已完成的未编码 QPSK/AWGN 基础链路上添加编码和译码部分。具体工作包括：选择合适的信道编码方案，完成编码器和译码器接入，整理码率对信噪比换算的影响，输出编码前后的 BER 曲线对比，并分析编码方案带来的性能提升。
+下一周计划在 \texttt{step1} 已完成的未编码 QPSK/AWGN 基础链路上添加编码和译码部分。具体工作包括：选择合适的信道编码方案，完成编码器和译码器接入，整理码率对信噪比换算的影响，输出编码前后的 BER 曲线对比，并分析编码方案带来的性能提升。
 
 \end{document}

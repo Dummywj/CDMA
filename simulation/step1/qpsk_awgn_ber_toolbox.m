@@ -1,4 +1,4 @@
-%% Chapter A: QPSK over AWGN BER simulation using MATLAB toolbox functions
+%% Step 1: QPSK over AWGN BER simulation using MATLAB toolbox functions
 % Link: random bits -> QPSK modulation -> AWGN channel -> QPSK demodulation -> BER
 % Requirement: Communications Toolbox.
 
@@ -79,7 +79,7 @@ resultTable = table(ebN0dBList(:), bitErrors(:), berSim(:), berTheory(:), ...
 disp(resultTable);
 
 %% 5. Plot BER curve
-figure('Name', 'Chapter A BER Curve - Toolbox Version');
+figure('Name', 'Step 1 BER Curve - Toolbox Version');
 semilogy(ebN0dBList, berSim, 'o-', 'LineWidth', 1.5); hold on;
 semilogy(ebN0dBList, berTheory, 's--', 'LineWidth', 1.5);
 grid on;
@@ -102,7 +102,7 @@ for idx = 1:numel(constellationEbN0dB)
     esN0dB = ebN0dB + 10 * log10(bitsPerSymbol);
     rxSymbolsForPlot = awgn(txSymbols(1:nConstellationSamples), esN0dB, 'measured');
 
-    figure('Name', sprintf('Chapter A QPSK Constellation Toolbox %d dB', ebN0dB));
+    figure('Name', sprintf('Step 1 QPSK Constellation Toolbox %d dB', ebN0dB));
     plot(real(rxSymbolsForPlot), imag(rxSymbolsForPlot), '.', 'MarkerSize', 5); hold on;
     plot(real(idealSymbols), imag(idealSymbols), 'rx', 'LineWidth', 2, 'MarkerSize', 10);
     grid on; axis equal;
