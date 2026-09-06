@@ -1,0 +1,22 @@
+{
+  "agents": {
+    "teacher": {
+      "session_id": "01a07552-77e9-7522-8c44-32acbe3a6d82",
+      "role_file": "roles/teacher.md",
+      "model": "gpt-6-astra",
+      "effort": "high"
+    },
+    "researcher": {
+      "session_id": "01a07590-2d28-7471-a100-d830bd101b9b",
+      "role_file": "roles/researcher.md",
+      "model": "gpt-5.6-terra",
+      "effort": "medium"
+    },
+    "executor": {
+      "session_id": "01a07590-a8e2-7022-ad97-4846848bd47d",
+      "role_file": "roles/executor.md",
+      "model": "gpt-6-astra",
+      "effort": "high"
+    }
+  }
+}

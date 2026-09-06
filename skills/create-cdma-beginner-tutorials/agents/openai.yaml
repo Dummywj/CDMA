@@ -1,4 +1,0 @@
-interface:
-  display_name: "CDMA 初学者教程"
-  short_description: "依据项目十步法生成面向零基础学习者且可验证的分步通信教程"
-  default_prompt: "Use $create-cdma-beginner-tutorials to generate the requested CDMA step tutorial for a complete beginner."

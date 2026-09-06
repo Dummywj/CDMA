@@ -1,6 +1,6 @@
 # Project-local large/raw reference materials
-material/original/
-simulation/*/out
+material/
+
 
 # macOS
 .DS_Store
