@@ -20,6 +20,16 @@
 
 对应的课程图示见[训练课件 part2 第 4—7 页](../../material/research-training-part2/README.md#第-4-页)。CDMA 的目标是更有效地共享资源；“码不同”并不自动保证在任何信道条件下都互不干扰。
 
+### 模拟、数字与多址方式的关系
+
+这里需要把三个维度分开：**模拟通信或数字通信**描述所传信息怎样表示和恢复，**模拟电路或数字电路**描述具体实现，**FDMA、TDMA 或 CDMA**描述多个用户怎样共享无线资源。数字通信系统也包含模拟射频电路，不能凭是否使用数字电路来判断多址方式。
+
+早期商用蜂窝系统主要采用模拟 FM 和 FDMA。不过，“按时间轮流传输”不要求信息必须先变成二进制比特：模拟 PAM 样值可以按时隙交错传送，抽样也不等于量化。这个时分复用原理说明时分与数字化不能画等号，但不意味着早期蜂窝曾普遍采用模拟 TDMA。商用蜂窝中的 GSM、IS-136 等 TDMA 路线采用的是数字通信体制。[模拟 PAM 与时分复用讲义](https://pld.cs.luc.edu/telecom/mnotes/modulation_transmission.html)；[ITU 的移动技术资料](https://www.itu.int/ITU-D/tech/NGN/Manual/ManualAddReferences/A_3_2_5.pdf)
+
+CDMA 也不是物理上只能用数字电路实现。扩频接收中的模拟匹配滤波器已有实际研究，例如 1974 年的声表面波模拟匹配滤波器工作；它同时说明“数字通信”可以采用模拟处理部件。但商用蜂窝 CDMA 要把码同步、功率控制、Rake 合并和信道编译码组织成完整系统，数字基带便于实现可重复、可调参数的处理链。Qualcomm 在 1993 年对 IS-95 的介绍将它称为数字扩频蜂窝系统，并把它放在替代模拟 FM 蜂窝系统的背景下。[Darby，1974](https://era.ed.ac.uk/items/501b08fe-627a-4ba4-bd56-24821d1ce28f)；[Karn，1993](https://www.usenix.org/legacy/publications/library/proceedings/mobile93/karn.html)
+
+因此，历史因果关系更准确的说法是：容量、服务质量和功能需求推动蜂窝数字化，数字实现能力又支持了 TDMA 和 CDMA 等不同路线。不能由“商用 CDMA 适合数字基带实现”推导出“数字蜂窝为了 CDMA 才开始发展”。GSM 就是采用时分多址的数字蜂窝路线，ETSI 记录其首批可实施规范在 1988 年已经就绪。[ETSI 历史记录](https://www.etsi.org/about/history/)；[GSM 多址与复用规范说明](https://portal.etsi.org/webapp/WorkProgram/Report_WorkItem.asp?WKI_ID=5434)
+
 ## 2. CDMA 的工程难点：怎样从混合波形中找回数据
 
 CDMA 发射机用较快的码序列扩展数据对应波形的频谱。接收机利用匹配的码序列进行相关处理，将目标信号恢复出来。这要求接收端不仅知道用什么码，还要知道码对齐在哪里，以及收到的信号经历了怎样的幅度和相位变化。
