@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="980" viewBox="0 0 1800 980" role="img" aria-labelledby="title desc">
+  <title id="title">CDMA 无线数据传输项目通信链路</title>
+  <desc id="desc">从业务比特、卷积编码、三条逻辑信道、Walsh 码、IS-95 PN 扩频和 QPSK 调制，经 AWGN 或两径瑞利信道，到同步、Searcher、两路 Finger、Rake 最大比合并、解调译码和 BER 统计的链路图。</desc>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 Z" fill="#284b63"/>
+    </marker>
+    <marker id="arrowAccent" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 Z" fill="#b85c38"/>
+    </marker>
+    <style>
+      .bg { fill: #f7f4ee; }
+      .title { font: 700 34px -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans CJK SC", sans-serif; fill: #173042; }
+      .subtitle { font: 400 18px -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans CJK SC", sans-serif; fill: #52636d; }
+      .section { font: 700 24px -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans CJK SC", sans-serif; fill: #173042; }
+      .box-title { font: 700 20px -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans CJK SC", sans-serif; fill: #173042; }
+      .box-text { font: 400 16px -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans CJK SC", sans-serif; fill: #3f525d; }
+      .small { font: 400 14px -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans CJK SC", sans-serif; fill: #52636d; }
+      .tx { fill: #e4f0f0; stroke: #438a87; stroke-width: 2; }
+      .rx { fill: #e9eef7; stroke: #5272a1; stroke-width: 2; }
+      .channel { fill: #fff1e7; stroke: #b85c38; stroke-width: 2; }
+      .support { fill: #f0eee7; stroke: #8a7863; stroke-width: 2; }
+      .wire { stroke: #284b63; stroke-width: 3; fill: none; marker-end: url(#arrow); }
+      .wire-accent { stroke: #b85c38; stroke-width: 3; fill: none; marker-end: url(#arrowAccent); }
+      .dash { stroke-dasharray: 8 7; }
+    </style>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1800" height="980"/>
+  <text class="title" x="70" y="70">CDMA 无线数据传输项目通信链路</text>
+  <text class="subtitle" x="70" y="105">800 MHz · 1.2288 Mchip/s · 2.4 / 4.8 / 9.6 kbit/s · QPSK · IS-95 短码与卷积码</text>
+
+  <text class="section" x="90" y="175">发端：把业务比特变成扩频复基带</text>
+  <rect class="tx" x="70" y="205" width="210" height="105" rx="14"/>
+  <text class="box-title" x="175" y="247" text-anchor="middle">业务比特</text>
+  <text class="box-text" x="175" y="277" text-anchor="middle">帧组织 / 速率适配</text>
+
+  <rect class="tx" x="345" y="205" width="210" height="105" rx="14"/>
+  <text class="box-title" x="450" y="247" text-anchor="middle">IS-95 卷积编码</text>
+  <text class="box-text" x="450" y="277" text-anchor="middle">编码符号与测试向量</text>
+
+  <rect class="tx" x="620" y="190" width="250" height="135" rx="14"/>
+  <text class="box-title" x="745" y="225" text-anchor="middle">三条逻辑信道</text>
+  <rect class="support" x="650" y="245" width="190" height="25" rx="6"/>
+  <text class="small" x="745" y="263" text-anchor="middle">导频信道</text>
+  <rect class="support" x="650" y="277" width="190" height="25" rx="6"/>
+  <text class="small" x="745" y="295" text-anchor="middle">同步信道 / 业务信道</text>
+
+  <rect class="tx" x="935" y="205" width="210" height="105" rx="14"/>
+  <text class="box-title" x="1040" y="247" text-anchor="middle">Walsh 码区分</text>
+  <text class="box-text" x="1040" y="277" text-anchor="middle">64 位 Walsh 码</text>
+
+  <rect class="tx" x="1210" y="205" width="210" height="105" rx="14"/>
+  <text class="box-title" x="1315" y="247" text-anchor="middle">IS-95 PN 扩频</text>
+  <text class="box-text" x="1315" y="277" text-anchor="middle">码片速率 1.2288 Mchip/s</text>
+
+  <rect class="tx" x="1485" y="205" width="210" height="105" rx="14"/>
+  <text class="box-title" x="1590" y="247" text-anchor="middle">QPSK 调制</text>
+  <text class="box-text" x="1590" y="277" text-anchor="middle">复基带波形</text>
+
+  <path class="wire" d="M280 258 H345"/><path class="wire" d="M555 258 H620"/>
+  <path class="wire" d="M870 258 H935"/><path class="wire" d="M1145 258 H1210"/>
+  <path class="wire" d="M1420 258 H1485"/>
+
+  <rect class="channel" x="565" y="395" width="670" height="175" rx="18"/>
+  <text class="section" x="900" y="435" text-anchor="middle">无线信道</text>
+  <rect class="support" x="610" y="462" width="245" height="67" rx="10"/>
+  <text class="box-title" x="732" y="489" text-anchor="middle">AWGN</text>
+  <text class="small" x="732" y="512" text-anchor="middle">浮点基线 / BER 曲线</text>
+  <rect class="support" x="945" y="462" width="245" height="67" rx="10"/>
+  <text class="box-title" x="1067" y="489" text-anchor="middle">两径瑞利信道</text>
+  <text class="small" x="1067" y="512" text-anchor="middle">路径时延 / 复增益 / 衰落</text>
+  <path class="wire-accent" d="M1590 310 V395 H1235"/>
+  <path class="wire-accent" d="M565 482 H505 V310"/>
+  <text class="small" x="900" y="615" text-anchor="middle">每组测试保存信道参数、随机种子和接收波形</text>
+
+  <text class="section" x="90" y="690">收端：同步、分集接收与恢复比特</text>
+  <rect class="rx" x="70" y="720" width="210" height="105" rx="14"/>
+  <text class="box-title" x="175" y="762" text-anchor="middle">Searcher / 同步</text>
+  <text class="box-text" x="175" y="792" text-anchor="middle">PN 捕获、码相位、路径时延</text>
+
+  <rect class="rx" x="345" y="700" width="210" height="145" rx="14"/>
+  <text class="box-title" x="450" y="737" text-anchor="middle">两路 Finger</text>
+  <text class="box-text" x="450" y="770" text-anchor="middle">Finger 1：对齐 / 解扩</text>
+  <text class="box-text" x="450" y="800" text-anchor="middle">Finger 2：对齐 / 解扩</text>
+  <text class="small" x="450" y="827" text-anchor="middle">信道估计与相位补偿</text>
+
+  <rect class="rx" x="620" y="720" width="210" height="105" rx="14"/>
+  <text class="box-title" x="725" y="762" text-anchor="middle">Rake 合并</text>
+  <text class="box-text" x="725" y="792" text-anchor="middle">最大比合并（MRC）</text>
+
+  <rect class="rx" x="895" y="720" width="210" height="105" rx="14"/>
+  <text class="box-title" x="1000" y="762" text-anchor="middle">QPSK 解调</text>
+  <text class="box-text" x="1000" y="792" text-anchor="middle">复符号 → 编码符号</text>
+
+  <rect class="rx" x="1170" y="720" width="210" height="105" rx="14"/>
+  <text class="box-title" x="1275" y="762" text-anchor="middle">Walsh / PN 解扩</text>
+  <text class="box-text" x="1275" y="792" text-anchor="middle">逻辑信道分离</text>
+
+  <rect class="rx" x="1445" y="720" width="210" height="105" rx="14"/>
+  <text class="box-title" x="1550" y="762" text-anchor="middle">卷积译码</text>
+  <text class="box-text" x="1550" y="792" text-anchor="middle">恢复业务比特 / BER</text>
+
+  <path class="wire" d="M505 570 V665 H175 V720"/>
+  <path class="wire" d="M280 772 H345"/><path class="wire" d="M555 772 H620"/>
+  <path class="wire" d="M830 772 H895"/><path class="wire" d="M1105 772 H1170"/>
+  <path class="wire" d="M1380 772 H1445"/>
+
+  <rect class="support" x="70" y="875" width="1585" height="55" rx="12"/>
+  <text class="box-text" x="862" y="909" text-anchor="middle">验证顺序：理想同步 → AWGN 浮点基线 → 两径瑞利与 Rake → 定点量化 → RTL 逐比特 → 硬件联试</text>
+</svg>
