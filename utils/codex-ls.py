@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 # Usage (from the project root): python3 utils/codex-ls.py
 # Usage (explicit project): python3 utils/codex-ls.py /path/to/project
+# Usage (include internal reviews): python3 utils/codex-ls.py --all
+# Usage (unabridged titles): python3 utils/codex-ls.py --all --full-title
 # Lists local sessions, including archived ones, without starting Codex.
+# Hides guardian reviews by default and limits titles to 80 characters.
 # Uses CODEX_HOME when set, otherwise ~/.codex.
 
 import argparse
@@ -18,6 +21,13 @@ def main():
     )
     parser.add_argument(
         "project", nargs="?", default=".", help="project directory (default: current directory)"
+    )
+    parser.add_argument(
+        "--all", action="store_true",
+        help="include internal guardian review sessions for this project",
+    )
+    parser.add_argument(
+        "--full-title", action="store_true", help="show titles without truncation"
     )
     args = parser.parse_args()
     project = Path(args.project).expanduser().resolve()
@@ -39,10 +49,12 @@ def main():
     connection = None
     try:
         connection = sqlite3.connect(database.as_uri() + "?mode=ro", uri=True)
+        # Keep NULL sources (including ordinary sessions) in the default listing.
+        review_filter = "" if args.all else " AND COALESCE(thread_source, '') != 'guardian_review'"
         # Renaming sets name while preserving the original title.
         rows = connection.execute(
             "SELECT id, COALESCE(NULLIF(name, ''), title), archived FROM threads "
-            "WHERE cwd = ? ORDER BY updated_at DESC",
+            "WHERE cwd = ?" + review_filter + " ORDER BY updated_at DESC",
             (str(project),),
         ).fetchall()
     except sqlite3.Error as error:
@@ -58,6 +70,8 @@ def main():
         print(f"{'SESSION ID':36}  {'ARCHIVED':8}  TITLE")
         for session_id, title, archived in rows:
             title = " ".join(title.split())
+            if not args.full_title and len(title) > 80:
+                title = title[:77] + "..."
             print(f"{session_id:36}  {'yes' if archived else 'no':8}  {title}")
     return 0
 

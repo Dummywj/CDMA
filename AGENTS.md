@@ -26,6 +26,12 @@
 
 Codex 的 `AGENTS.md` 加载机制见 [官方文档](https://learn.chatgpt.com/docs/agent-configuration/agents-md)。本项目的角色、任务协议和运行状态目录属于自定义约定；创建这些文件本身不会启动多 Agent 或消息调度。
 
+## 文档管理
+
+- 对于 `material` 的管理应当每一份文档设置一份目录，读取时应当只读取 md 文件，避免重复读取 pdf。 `material/README.md` 包含对材料的索引。
+- 写入 `docs` 的文档应当顺便更新一遍 README.md，表示对文档的索引。
+- 在将文档转化为 markdown 时，应当使用 `~/Developer/markitdown` 工具。
+
 ## 注意事项
 
-所有的文档生成应当由中文编写，对于代码注释，git 提交信息保留英文。
+- 所有的文档生成应当由中文编写，对于代码注释，git 提交信息保留英文。
