@@ -44,13 +44,14 @@ y[n] = x[n] + w[n]
 业务比特
   -> 帧组织和速率适配
   -> IS-95 卷积编码
+  -> 交织
   -> 信道复用/信道化
   -> PN 扩频
   -> QPSK 调制
   -> 单径 AWGN
   -> 理想同步
   -> 解扩
-  -> QPSK 软判决
+  -> 软符号提取（保留幅度，不先硬判决）
   -> 解交织和卷积译码
   -> 恢复业务比特
 ```
@@ -77,3 +78,79 @@ y[n] = x[n] + w[n]
 4. 保存固定输入、噪声种子和关键中间结果，便于后续定点和 RTL 逐级对比。
 
 后续加入 Searcher、同步跟踪或 Rake 时，应继续保留本基线，作为理想同步单径链路的对照。
+
+## 7. 第一版 Simulink 实现
+
+模型位于 [`matlab/baseline/baseline.slx`](../../matlab/baseline/baseline.slx)，所有处理模块平铺在顶层，无用户自建子系统。各模块调用 [`baseline_step.m`](../../matlab/baseline/baseline_step.m) 中对应分支；配置位于 [`init_baseline.m`](../../matlab/baseline/init_baseline.m)。MATLAB R2025b、Simulink 和 Communications Toolbox 已用于实际运行验证。
+
+业务帧采用用户确认的前向 RC1 满速结构。这里的 9.6 kbit/s 是含 CRC 和尾比特的编码器输入速率；有效数据位速率为 172/20 ms = 8.6 kbit/s，不能把 192 位全部当成净业务数据。
+
+| 项目 | 当前实现 |
+| --- | --- |
+| 每批时间 | 80 ms：4 个业务帧、3 个同步信道帧 |
+| 业务帧 | 172 数据位＋12 CRC＋8 个零尾比特，共 192 位 |
+| 业务卷积编码 | K=9，R=1/2，八进制生成多项式按 753、561 顺序输出，每帧 384 编码符号 |
+| CRC | 多项式 x^12+x^11+x^10+x^9+x^8+x^4+x+1，寄存器全 1 初态，直接法，无最终取反 |
+| 业务交织 | 每帧独立 BRO 交织，N=384、m=6、J=6 |
+| Walsh | 导频 W0、同步 W32、业务 W1，长度均为 64，采用 Sylvester Hadamard 行序、从 0 编号 |
+| 相对幅度 | 业务 1、导频 0.5、同步 0.25；对应功率分别为 1、0.25、0.0625 |
+| 同步输入 | 每批 96 位固定物理层测试模式，分成 3 个 32 位帧；不是完整的三层同步消息 |
+| 同步编码 | K=9、R=1/2；编码符号重复 2 次；每帧 128 符号 BRO 交织；每个符号覆盖 4 个 Walsh 周期 |
+| 同步编码状态 | 固定模式循环发送，编码器使用该周期对应的连续状态，不在帧边界或批次边界复位 |
+| 短 PN | 标准 I/Q 递推、14 零后插零，长度 32,768；零偏移起点为 15 个零之后的第一个 1 |
+| 波形 | 1 chip 对应 1 个复数采样；每批 98,304 个复数采样；c=(pI+j*pQ)/sqrt(2) |
+| 接收 | 共轭 PN 解扩、取实部、Walsh 相关、逆交织、终止模式非量化 Viterbi、提取有效数据 |
+
+物理层参数依据材料中 [IS-2000-2-A](../../material/c-p0002-pn-4694/converted.md) 的 3.1.3.1.4、3.1.3.1.7、3.1.3.1.13、3.1.3.2.1、3.1.3.3 和 3.1.3.11.2.1。Walsh 业务编号和相对幅度属于本次仿真配置。
+
+当前完成 9.6 kbit/s 档的浮点基线。2.4/4.8 kbit/s 速率适配、长码业务扰码、功控位复用、发射成形及接收匹配滤波尚未实现；同步分支也未构建完整同步消息。此模型验证所列物理层处理环节，不作为完整 cdma2000 互通实现，也不据此判定 0.4 dB 定点指标。
+
+## 8. 运行和查看结果
+
+在 MATLAB 中将当前文件夹切换到项目根目录，运行：
+
+```matlab
+addpath('matlab/baseline');
+init_baseline;
+open_system('baseline');
+```
+
+点击 Run，默认每批处理 80 ms、运行 10 批。块执行时刻是 0、0.08、……、0.72 秒，代表共 0.8 秒的数据。0.08 秒是向量批次的调度周期；向量内部的 chip 间隔为 1/1,228,800 秒，二者不能混淆。
+
+顶层显示器依次显示当前批次的 BER、FER 和错误位数。所有算法模块仍在顶层；双击模块可查看调用表达式，在 `baseline_step.m` 中搜索同名分支可定位算法。
+
+调整噪声、重跑及读取观测结果：
+
+```matlab
+cfg.noiseEnabled = false;  % Noiseless round trip
+out = sim('baseline');
+cfg.noiseEnabled = true;
+cfg.EbNoDb = 2;
+out = sim('baseline');
+out.txPayload.Data
+out.rxPayload.Data
+out.rxSoft.Data
+```
+
+初始化函数保留已存在的本基线配置；恢复默认参数可先执行 `clear cfg; init_baseline`。若更改结构尺寸，需要同步调整模型固定端口尺寸，不应仅修改配置字段。
+
+自动验证和扫点：
+
+```matlab
+verify_baseline;
+results = run_baseline(100);
+```
+
+每个信噪比点运行 100 批，即 400 个业务帧、68,800 个有效数据位。结果写入 `matlab/results/baseline/ber_fer.csv`、`ber_fer.png`，单批关键中间结果保存到 `diagnostic.mat`。模型默认保存 `txPayload`、`packedBits`、`codedBits`、`interleavedBits`、`txIQ`、`rxIQ`、`rxSoft`、`decodedBits`、`rxPayload`；自动扫点时关闭大尺寸 I/Q 日志，仅在诊断批次保留。
+
+噪声以业务有效数据位的 Eb/N0 为横轴。若业务分支功率为 Pt、有效数据位速率为 Rb=8600 bit/s，则每个复噪声采样的总方差为：
+
+```text
+E[|w|^2] = Pt × 1,228,800 / (Rb × 10^(EbNoDb/10))
+```
+
+实部与虚部各占一半方差，导频和同步分支的功率不计入业务 Eb。代码固定数据与噪声种子以复现实验。该定义已经计入 CRC、尾比特、卷积编码和扩频后的能量关系，无需额外重复增加编码增益或扩频增益。
+
+FER 按 172 位有效数据中是否出现错误统计；CSV 另列 CRCFailures。CRC 失败计数和有效数据帧错误计数可能不同，例如 CRC 位自身出错但有效数据正确。
+
+详细检查和本次运行数值见[基线仿真结果](baseline-results.md)。

@@ -11,7 +11,8 @@
 
 ## 设计基线
 
-- [浮点链路基线](design/baseline.md)：规定单径 AWGN、理想同步和单支路接收的第一版验证范围。
+- [浮点链路基线](design/baseline.md)：规定单径 AWGN、理想同步和单支路接收的第一版验证范围，模型与脚本位于 `matlab/baseline/`。
+- [基线仿真结果](design/baseline-results.md)：平铺 Simulink 模型的 BER/FER 结果和验证边界，仿真产物位于 `matlab/results/baseline/`。
 
 ## 图示
 
