@@ -31,6 +31,7 @@ Codex 的 `AGENTS.md` 加载机制见 [官方文档](https://learn.chatgpt.com/d
 - 对于 `material` 的管理应当每一份文档设置一份目录，读取时应当只读取 md 文件，避免重复读取 pdf。 `material/README.md` 包含对材料的索引。
 - 写入 `docs` 的文档应当顺便更新一遍 README.md，表示对文档的索引。
 - 在将文档转化为 markdown 时，应当使用 `~/Developer/markitdown` 工具。
+- `docs/decisions` 包含了项目推进过程中的设计决策，在遇到存在设计歧义情况时应当参考这下面的文档，如果该文档仍不能解决疑问，则需要与用户交互。
 
 ## 注意事项
 

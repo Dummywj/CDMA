@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1800" height="980" viewBox="0 0 1800 980" role="img" aria-labelledby="title desc">
   <title id="title">CDMA 无线数据传输项目通信链路</title>
-  <desc id="desc">从业务比特、卷积编码、三条逻辑信道、Walsh 码、IS-95 PN 扩频和 QPSK 调制，经 AWGN 或两径瑞利信道，到同步、Searcher、两路 Finger、Rake 最大比合并、解调译码和 BER 统计的链路图。</desc>
+  <desc id="desc">从业务比特、卷积编码、三条逻辑信道、Walsh 码、IS-95 PN 扩频和 QPSK 调制，经 AWGN 或两径瑞利信道，到下变频、同步捕获、两路 Finger、解扩、Rake 最大比合并、QPSK 符号判决、译码和 BER 统计的链路图。</desc>
   <defs>
     <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
       <path d="M0,0 L12,6 L0,12 Z" fill="#284b63"/>
@@ -74,37 +74,47 @@
   <path class="wire-accent" d="M565 482 H505 V310"/>
   <text class="small" x="900" y="615" text-anchor="middle">每组测试保存信道参数、随机种子和接收波形</text>
 
-  <text class="section" x="90" y="690">收端：同步、分集接收与恢复比特</text>
-  <rect class="rx" x="70" y="720" width="210" height="105" rx="14"/>
-  <text class="box-title" x="175" y="762" text-anchor="middle">Searcher / 同步</text>
-  <text class="box-text" x="175" y="792" text-anchor="middle">PN 捕获、码相位、路径时延</text>
+  <text class="section" x="90" y="690">收端：复基带、同步、分集接收与恢复比特</text>
+  <rect class="rx" x="70" y="720" width="190" height="105" rx="14"/>
+  <text class="box-title" x="165" y="755" text-anchor="middle">RF / ADC 前端</text>
+  <text class="box-text" x="165" y="785" text-anchor="middle">下变频 → 复基带 I/Q</text>
+  <text class="small" x="165" y="807" text-anchor="middle">保留复数采样</text>
 
-  <rect class="rx" x="345" y="700" width="210" height="145" rx="14"/>
-  <text class="box-title" x="450" y="737" text-anchor="middle">两路 Finger</text>
-  <text class="box-text" x="450" y="770" text-anchor="middle">Finger 1：对齐 / 解扩</text>
-  <text class="box-text" x="450" y="800" text-anchor="middle">Finger 2：对齐 / 解扩</text>
-  <text class="small" x="450" y="827" text-anchor="middle">信道估计与相位补偿</text>
+  <rect class="rx" x="285" y="720" width="190" height="105" rx="14"/>
+  <text class="box-title" x="380" y="755" text-anchor="middle">Searcher / 同步</text>
+  <text class="box-text" x="380" y="785" text-anchor="middle">PN 捕获、粗定时</text>
+  <text class="small" x="380" y="807" text-anchor="middle">帧边界 / 路径搜索</text>
 
-  <rect class="rx" x="620" y="720" width="210" height="105" rx="14"/>
-  <text class="box-title" x="725" y="762" text-anchor="middle">Rake 合并</text>
-  <text class="box-text" x="725" y="792" text-anchor="middle">最大比合并（MRC）</text>
+  <rect class="rx" x="500" y="700" width="190" height="145" rx="14"/>
+  <text class="box-title" x="595" y="737" text-anchor="middle">两路 Finger</text>
+  <text class="box-text" x="595" y="770" text-anchor="middle">Finger 1：路径对齐</text>
+  <text class="box-text" x="595" y="800" text-anchor="middle">Finger 2：路径对齐</text>
+  <text class="small" x="595" y="827" text-anchor="middle">信道估计与相位补偿</text>
 
-  <rect class="rx" x="895" y="720" width="210" height="105" rx="14"/>
-  <text class="box-title" x="1000" y="762" text-anchor="middle">QPSK 解调</text>
-  <text class="box-text" x="1000" y="792" text-anchor="middle">复符号 → 编码符号</text>
+  <rect class="rx" x="715" y="720" width="190" height="105" rx="14"/>
+  <text class="box-title" x="810" y="755" text-anchor="middle">Walsh / PN 解扩</text>
+  <text class="box-text" x="810" y="785" text-anchor="middle">逐路解扩、信道分离</text>
+  <text class="small" x="810" y="807" text-anchor="middle">输出软复符号</text>
 
-  <rect class="rx" x="1170" y="720" width="210" height="105" rx="14"/>
-  <text class="box-title" x="1275" y="762" text-anchor="middle">Walsh / PN 解扩</text>
-  <text class="box-text" x="1275" y="792" text-anchor="middle">逻辑信道分离</text>
+  <rect class="rx" x="930" y="720" width="190" height="105" rx="14"/>
+  <text class="box-title" x="1025" y="755" text-anchor="middle">Rake 合并</text>
+  <text class="box-text" x="1025" y="785" text-anchor="middle">最大比合并（MRC）</text>
+  <text class="small" x="1025" y="807" text-anchor="middle">合并有效路径</text>
 
-  <rect class="rx" x="1445" y="720" width="210" height="105" rx="14"/>
-  <text class="box-title" x="1550" y="762" text-anchor="middle">卷积译码</text>
-  <text class="box-text" x="1550" y="792" text-anchor="middle">恢复业务比特 / BER</text>
+  <rect class="rx" x="1145" y="720" width="190" height="105" rx="14"/>
+  <text class="box-title" x="1240" y="755" text-anchor="middle">QPSK 符号判决</text>
+  <text class="box-text" x="1240" y="785" text-anchor="middle">复符号 → 软编码符号</text>
+  <text class="small" x="1240" y="807" text-anchor="middle">I/Q 解映射</text>
+
+  <rect class="rx" x="1360" y="720" width="190" height="105" rx="14"/>
+  <text class="box-title" x="1455" y="755" text-anchor="middle">卷积译码</text>
+  <text class="box-text" x="1455" y="785" text-anchor="middle">恢复业务比特 / BER</text>
+  <text class="small" x="1455" y="807" text-anchor="middle">Viterbi / 帧检查</text>
 
   <path class="wire" d="M505 570 V665 H175 V720"/>
-  <path class="wire" d="M280 772 H345"/><path class="wire" d="M555 772 H620"/>
-  <path class="wire" d="M830 772 H895"/><path class="wire" d="M1105 772 H1170"/>
-  <path class="wire" d="M1380 772 H1445"/>
+  <path class="wire" d="M260 772 H285"/><path class="wire" d="M475 772 H500"/>
+  <path class="wire" d="M690 772 H715"/><path class="wire" d="M905 772 H930"/>
+  <path class="wire" d="M1120 772 H1145"/><path class="wire" d="M1335 772 H1360"/>
 
   <rect class="support" x="70" y="875" width="1585" height="55" rx="12"/>
   <text class="box-text" x="862" y="909" text-anchor="middle">验证顺序：理想同步 → AWGN 浮点基线 → 两径瑞利与 Rake → 定点量化 → RTL 逐比特 → 硬件联试</text>
