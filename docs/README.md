@@ -8,11 +8,12 @@
 ## 设计决策
 
 - [帧长度选择](decisions/01-frame-length.md)：规定三个帧的长度信息，避免和简化模型产生冲突。
+- [基线载荷定义](decisions/02-baseline-payload.md)：将教学基线业务帧固定为 192 个业务位，无 CRC、无尾零，并说明 BER 扫描约定。
 
 ## 设计基线
 
 - [浮点链路基线](design/baseline.md)：规定单径 AWGN、理想同步和单支路接收的第一版验证范围，模型与脚本位于 `matlab/baseline/`。
-- [基线仿真结果](design/baseline-results.md)：平铺 Simulink 模型的 BER/FER 结果和验证边界，仿真产物位于 `matlab/results/baseline/`。
+- [基线仿真结果](design/baseline-results.md)：平铺 Simulink 模型的 BER 结果和验证边界，仿真产物位于 `matlab/results/baseline/`。
 
 ## 图示
 

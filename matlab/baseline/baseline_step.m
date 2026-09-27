@@ -6,11 +6,10 @@ switch stage
     case 'TrafficSource'
         batch = round(real(u(1))/cfg.batchSeconds);
         stream = RandStream('mt19937ar', 'Seed', cfg.seed + batch);
-        y = double(rand(stream, 688, 1) >= 0.5);
+        y = double(rand(stream, 768, 1) >= 0.5);
     case 'FramePack'
-        data = reshape(u, 172, 4);
-        framed = [double(crcGenerate(logical(data),cfg.crc)); zeros(8,4)];
-        y = framed(:);
+        % The current teaching baseline treats all 192 bits as payload.
+        y = u;
     case 'ConvEncode'
         data = reshape(u,192,4);
         encoded = zeros(384,4);
@@ -46,9 +45,9 @@ switch stage
         batch = round(real(u(end))/cfg.batchSeconds);
         y = u(1:end-1);
         if cfg.noiseEnabled
-            % Eb refers to traffic energy per 172-bit information payload.
+            % Eb refers to traffic energy per 192-bit baseline payload.
             variance = cfg.trafficAmplitude^2 * cfg.chipRate / ...
-                (172/0.02) / 10^(cfg.EbNoDb/10);
+                (192/0.02) / 10^(cfg.EbNoDb/10);
             stream = RandStream('mt19937ar','Seed',cfg.seed+100000+batch);
             y = y + sqrt(variance/2) * complex( ...
                 randn(stream,numel(y),1),randn(stream,numel(y),1));
@@ -67,15 +66,14 @@ switch stage
         data = reshape(u,384,4);
         decoded = zeros(192,4);
         for k = 1:4
-            decoded(:,k) = vitdec(data(:,k), cfg.trellis, 40, 'term', 'unquant');
+            decoded(:,k) = vitdec(data(:,k), cfg.trellis, 40, 'trunc', 'unquant');
         end
         y = decoded(:);
     case 'PayloadExtract'
-        data = reshape(u,192,4);
-        y = reshape(data(1:172,:),[],1);
+        y = u;
     case 'BatchErrors'
-        errors = reshape(u(1:688) ~= u(689:end),172,4);
-        y = [nnz(errors)/688; nnz(any(errors,1))/4; nnz(errors)];
+        n = numel(u)/2;
+        y = nnz(u(1:n) ~= u(n+1:end))/n;
     otherwise
         error('baseline:UnknownStage','Unknown stage: %s',stage);
 end

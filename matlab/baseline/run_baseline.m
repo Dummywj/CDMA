@@ -1,8 +1,12 @@
-function results = run_baseline(numBatches)
-% Run the actual SLX model and save reproducible BER/FER evidence.
-% Usage: addpath('matlab/baseline'); results = run_baseline(100);
-if nargin < 1, numBatches = 100; end
-validateattributes(numBatches, {'numeric'}, {'scalar','integer','positive'});
+function results = run_baseline(numBatches, ebnoGrid)
+% Run the actual SLX model and save reproducible BER-only measurements.
+% Usage: addpath('matlab/baseline'); results = run_baseline();
+% Optional: run_baseline(1000, -4:0.25:6).
+if nargin < 1, numBatches = 1000; end
+if nargin < 2, ebnoGrid = -4:0.25:6; end
+validateattributes(numBatches, {'numeric'}, {'scalar','integer','positive','finite'});
+validateattributes(ebnoGrid, {'numeric'}, {'vector','real','finite','nonempty'});
+assert(all(diff(ebnoGrid(:))>0),'Eb/N0 points must be strictly increasing.');
 root = fileparts(mfilename('fullpath'));
 addpath(root);
 resultDir = fullfile(fileparts(root),'results','baseline');
@@ -13,70 +17,75 @@ modelFile = fullfile(root,'baseline.slx');
 if ~isfile(modelFile), build_baseline(); end
 load_system(modelFile);
 originalDirty = get_param('baseline','Dirty');
-stopTime = sprintf('%.12g',(numBatches-1)*cfg.batchSeconds);
-% Chip-rate traces are retained for one diagnostic batch only.
-set_param('baseline/Log_txIQ','Commented','on');
-set_param('baseline/Log_rxIQ','Commented','on');
-cleanup = onCleanup(@() restore_logs(originalDirty));
-ebno = [Inf -4 -2 0 2 4 6];
-rows = zeros(numel(ebno),8);
-for k = 1:numel(ebno)
-    cfg.noiseEnabled = isfinite(ebno(k));
-    cfg.EbNoDb = ebno(k);
-    assignin('base','cfg',cfg);
-    out = sim('baseline','StopTime',stopTime);
-    tx = reshape(out.txPayload.Data.',172,[]);
-    rx = reshape(out.rxPayload.Data.',172,[]);
-    errors = tx ~= rx;
-    decoded = reshape(out.decodedBits.Data.',192,[]);
-    [~, crcFailed] = crcDetect(logical(decoded(1:184,:)),cfg.crc);
-    bitErrors = nnz(errors);
-    frameErrors = nnz(any(errors,1));
-    rows(k,:) = [ebno(k),bitErrors,numel(errors),bitErrors/numel(errors), ...
-        frameErrors,size(errors,2),frameErrors/size(errors,2),nnz(crcFailed)];
-    fprintf('Eb/N0=%5g dB: BER=%.6g (%d/%d), FER=%.6g (%d/%d)\n', ...
-        rows(k,1),rows(k,4),rows(k,2),rows(k,3),rows(k,7),rows(k,5),rows(k,6));
-    if k == 1
-        assert(bitErrors == 0 && ~any(crcFailed), 'Noiseless round trip failed.');
-        expected = 1-2*out.interleavedBits.Data;
-        assert(max(abs(expected(:)-out.rxSoft.Data(:))) < 1e-12, ...
-            'Noiseless channel separation failed.');
-    end
-end
-results = array2table(rows,'VariableNames', ...
-    {'EbNo_dB','BitErrors','Bits','BER','FrameErrors','Frames','FER','CRCFailures'});
-writetable(results,fullfile(resultDir,'ber_fer.csv'));
-% A small run with all observation points permits detailed inspection.
-restore_logs(originalDirty);
+logs = find_system('baseline','SearchDepth',1,'BlockType','ToWorkspace');
+previous = get_param(logs,'Commented');
+cleanup = onCleanup(@() restore_logs(logs,previous,originalDirty)); %#ok<NASGU>
+% Keep all observation points for diagnostic checks only.
+for k=1:numel(logs), set_param(logs{k},'Commented','off'); end
+cfg.noiseEnabled = false;
+assignin('base','cfg',cfg);
+clean = sim('baseline','StopTime','0');
+assert(isequal(clean.txPayload.Data,clean.rxPayload.Data),'Noiseless round trip failed.');
+assert(isequal(clean.txPayload.Data,clean.packedBits.Data),'Unexpected frame overhead.');
+assert(numel(clean.txPayload.Data)==768 && numel(clean.codedBits.Data)==1536);
+expected = 1-2*clean.interleavedBits.Data;
+assert(max(abs(expected(:)-clean.rxSoft.Data(:)))<1e-12, ...
+    'Noiseless channel separation failed.');
+validation.noiselessBits = numel(clean.txPayload.Data);
+validation.noiselessErrors = 0;
 cfg.noiseEnabled = true; cfg.EbNoDb = 2;
 assignin('base','cfg',cfg);
 diagnostic = sim('baseline','StopTime','0');
 repeat = sim('baseline','StopTime','0');
 assert(isequal(diagnostic.rxIQ.Data,repeat.rxIQ.Data),'Noise reproducibility failed.');
-n = diagnostic.rxIQ.Data - diagnostic.txIQ.Data;
-expectedVariance = cfg.trafficAmplitude^2*cfg.chipRate/(172/0.02)/10^(cfg.EbNoDb/10);
+n = diagnostic.rxIQ.Data-diagnostic.txIQ.Data;
+expectedVariance = cfg.trafficAmplitude^2*cfg.chipRate/(192/0.02)/10^(cfg.EbNoDb/10);
 measuredVariance = mean(abs(n(:)).^2);
 assert(abs(measuredVariance/expectedVariance-1)<0.03,'AWGN variance check failed.');
+fprintf('Diagnostic checks passed; noise variance measured %.6g, expected %.6g.\n', ...
+    measuredVariance,expectedVariance);
+clear clean repeat n expected;
+% Retain only two payload logs during the sweep to bound memory use.
+for k=1:numel(logs)
+    name = get_param(logs{k},'VariableName');
+    if ~ismember(name,{'txPayload','rxPayload'})
+        set_param(logs{k},'Commented','on');
+    end
+end
+stopTime = sprintf('%.12g',(numBatches-1)*cfg.batchSeconds);
+ebno = ebnoGrid(:).';
+rows = zeros(numel(ebno),4);
+elapsedSeconds = zeros(numel(ebno),1);
+for k = 1:numel(ebno)
+    cfg.noiseEnabled = isfinite(ebno(k));
+    cfg.EbNoDb = ebno(k);
+    assignin('base','cfg',cfg);
+    timer = tic;
+    out = sim('baseline','StopTime',stopTime);
+    tx = out.txPayload.Data;
+    rx = out.rxPayload.Data;
+    assert(isequal(size(tx),size(rx)) && numel(tx)==numBatches*768);
+    bitErrors = nnz(tx ~= rx);
+    rows(k,:) = [ebno(k),bitErrors,numel(tx),bitErrors/numel(tx)];
+    elapsedSeconds(k)=toc(timer);
+    fprintf('[%d/%d] Eb/N0=%5g dB: BER=%.7g (%d/%d), %.1f s\n', ...
+        k,numel(ebno),rows(k,1),rows(k,4),rows(k,2),rows(k,3),elapsedSeconds(k));
+    results = array2table(rows(1:k,:),'VariableNames',{'EbNo_dB','BitErrors','Bits','BER'});
+    writetable(results,fullfile(resultDir,'ber.csv'));
+    clear out tx rx;
+end
+cfg.noiseEnabled=true; cfg.EbNoDb=2;
 save(fullfile(resultDir,'diagnostic.mat'),'diagnostic','cfg', ...
-    'measuredVariance','expectedVariance','results');
-fig = figure('Visible','off','Color','white');
-semilogy(ebno(2:end),max(rows(2:end,4),0.5./rows(2:end,3)),'o-', ...
-    ebno(2:end),max(rows(2:end,7),0.5./rows(2:end,6)),'s-','LineWidth',1.5);
-grid on; xlabel('业务有效数据位 E_b/N_0 (dB)'); ylabel('错误率');
-legend('BER（零错误点以 0.5/N 显示）','FER（零错误点以 0.5/N 显示）', ...
-    'Location','southwest');
-title(sprintf('单径 AWGN / 理想同步 / 每点 %d 个业务帧',4*numBatches));
-exportgraphics(fig,fullfile(resultDir,'ber_fer.png'),'Resolution',160);
-close(fig);
+    'measuredVariance','expectedVariance','results','elapsedSeconds','validation');
+plot_baseline_ber(results,resultDir);
 cfg.EbNoDb = 4;
 assignin('base','cfg',cfg);
-fprintf('Results saved to %s\n',resultDir);
+fprintf('Completed %d measured Eb/N0 points; results saved to %s\n',numel(ebnoGrid),resultDir);
 end
 
-function restore_logs(originalDirty)
+function restore_logs(logs,previous,originalDirty)
 if bdIsLoaded('baseline')
-    set_param('baseline/Log_txIQ','Commented','off');
-    set_param('baseline/Log_rxIQ','Commented','off');
+    for k=1:numel(logs), set_param(logs{k},'Commented',previous{k}); end
     set_param('baseline','Dirty',originalDirty);
 end
 end

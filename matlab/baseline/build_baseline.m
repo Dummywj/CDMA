@@ -46,7 +46,7 @@ add_block('simulink/Signal Routing/Goto', [model '/BatchTimeTag'], ...
     'Position', [35 275 115 300]);
 add_line(model, 'Clock/1', 'BatchTimeTag/1', 'autorouting', 'on');
 
-stage('TrafficSource', 688, 'real', [170 130 295 175]);
+stage('TrafficSource', 768, 'real', [170 130 295 175]);
 stage('FramePack', 768, 'real', [355 130 480 175]);
 stage('ConvEncode', 1536, 'real', [540 130 665 175]);
 stage('Interleave', 1536, 'real', [725 130 850 175]);
@@ -94,7 +94,7 @@ chain({'AWGNInput', 'AWGN', 'IQDespread', 'TrafficDespread'});
 
 stage('Deinterleave', 1536, 'real', [305 835 445 880]);
 stage('Viterbi', 768, 'real', [565 835 695 880]);
-stage('PayloadExtract', 688, 'real', [815 835 960 880]);
+stage('PayloadExtract', 768, 'real', [815 835 960 880]);
 chain({'TrafficDespread', 'Deinterleave', 'Viterbi', 'PayloadExtract'});
 add_block('simulink/Signal Routing/Goto',[model '/TxBitsTag'], ...
     'GotoTag','TxBits','TagVisibility','local','Position',[270 270 345 295]);
@@ -102,14 +102,14 @@ add_line(model,'TrafficSource/1','TxBitsTag/1','autorouting','on');
 add_block('simulink/Signal Routing/From',[model '/TxBitsForCompare'], ...
     'GotoTag','TxBits','Position',[1010 775 1110 800]);
 add_block('simulink/Signal Routing/Mux',[model '/CompareBits'], ...
-    'Inputs','[688 688]','Position',[1040 835 1050 895]);
+    'Inputs','[768 768]','Position',[1040 835 1050 895]);
 add_line(model,'TxBitsForCompare/1','CompareBits/1','autorouting','on');
 add_line(model,'PayloadExtract/1','CompareBits/2','autorouting','on');
-stage('BatchErrors',3,'real',[1110 830 1220 875]);
+stage('BatchErrors',1,'real',[1110 830 1220 875]);
 add_line(model,'CompareBits/1','BatchErrors/1');
-add_block('simulink/Sinks/Display',[model '/BER_FER_Errors'], ...
+add_block('simulink/Sinks/Display',[model '/BER'], ...
     'Position',[1100 930 1235 995]);
-add_line(model,'BatchErrors/1','BER_FER_Errors/1','autorouting','on');
+add_line(model,'BatchErrors/1','BER/1','autorouting','on');
 
 % Record only the required observation points to keep chip logging bounded.
 record('TrafficSource', 'txPayload', [180 215 290 245]);
@@ -125,15 +125,15 @@ record('PayloadExtract', 'rxPayload', [830 930 945 960]);
 note(sprintf(['CDMA 基线教学模型：顶层逐级观察\n' ...
     '每批 80 ms；默认 10 批；业务帧 20 ms，同步帧 26 2/3 ms']), ...
     [35 25], 15);
-note('业务发送：4 × 172 位载荷 → 4 × 192 位成帧 → 卷积编码 → 交织 → Walsh 扩频', ...
+note('业务发送：4 × 192 位业务比特 → 帧组织（透传）→ 卷积编码 → 交织 → Walsh 扩频', ...
     [170 90], 11);
 note('同步发送：96 → 192 → 384 → 98 304；导频幅度 0.5', [170 310], 11);
 note('信道与接收前端（由右向左）：I/Q 扩频 → 加噪 → I/Q 解扩 → 业务解扩', ...
     [305 550], 11);
 note('噪声输入末项为批次时间；其余 98 304 项为复数 I/Q 样本', [700 765], 10);
-note('业务接收（由左向右）：解交织 → Viterbi 译码 → 载荷提取', [305 790], 11);
+note('业务接收（由左向右）：解交织 → 截断模式 Viterbi 译码 → 192 位业务输出', [305 790], 11);
 note(sprintf(['观测输出保存为 timeseries；BER 在仿真后比较 txPayload 与 rxPayload\n' ...
-    '每帧 172 数据位＋12 CRC＋8 尾比特；显示器为当前批次 BER、FER、错误位数']), ...
+    '每帧 192 个业务比特；显示器为当前批次 BER']), ...
     [35 1010], 11);
 
 set_param(model, 'ZoomFactor', 'FitSystem');
