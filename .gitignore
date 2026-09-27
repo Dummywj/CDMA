@@ -1,6 +1,7 @@
 # Project-local large/raw reference materials
 material/
 matlab/results/
+submit/
 
 # macOS
 .DS_Store
