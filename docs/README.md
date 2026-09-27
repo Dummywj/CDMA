@@ -9,6 +9,10 @@
 
 - [帧长度选择](decisions/01-frame-length.md)：规定三个帧的长度信息，避免和简化模型产生冲突。
 
+## 设计基线
+
+- [浮点链路基线](design/baseline.md)：规定单径 AWGN、理想同步和单支路接收的第一版验证范围。
+
 ## 图示
 
 - [CDMA 通信链路图](pic/cdma-link.svg)：展示项目的发端、无线信道、同步、两径 Rake 收端和验证路径。
