@@ -36,3 +36,4 @@ Codex 的 `AGENTS.md` 加载机制见 [官方文档](https://learn.chatgpt.com/d
 ## 注意事项
 
 - 所有的文档生成应当由中文编写，对于代码注释，git 提交信息保留英文。
+- 生成周报时，需要参考 `submit/周报要求.docx` ，正文字体使用 Fangsong_GB，大小为 12。
